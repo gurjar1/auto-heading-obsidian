@@ -1,0 +1,25 @@
+# Build output
+main.js
+
+# npm
+node_modules/
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+dist/
+*.d.ts
+*.js.map
+
+# Misc
+*.log
+.antigravityignore
+tests/quick-audit.mjs

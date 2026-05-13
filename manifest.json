@@ -1,0 +1,10 @@
+{
+	"id": "auto-heading",
+	"name": "Auto Heading",
+	"version": "1.0.0",
+	"minAppVersion": "1.5.0",
+	"description": "Automatic heading numbering with burn-in for TOC/PDF/Publish, visual-only decorations, per-note control, and smart detection of existing numbers.",
+	"author": "gurjar1",
+	"authorUrl": "https://github.com/gurjar1/auto-heading-obsidian",
+	"isDesktopOnly": true
+}

@@ -1,0 +1,313 @@
+/**
+ * Auto Heading — Styles
+ *
+ * Decoration numbering inherits the heading's own font-size and weight
+ * so the number always matches the heading it belongs to.
+ */
+
+/* ─── Base number decoration ─────────────────────────────────── */
+
+.ah-number {
+  display: inline;
+  font-size: inherit;
+  font-weight: inherit;
+  font-family: inherit;
+  line-height: inherit;
+  letter-spacing: -0.01em;
+  color: var(--text-normal);
+  user-select: none;
+  pointer-events: none;
+  vertical-align: baseline;
+}
+
+/* Per-level color tinting (subtle, theme-aware) */
+.ah-number-level-1 { color: var(--text-accent); }
+.ah-number-level-2 { color: var(--text-normal); }
+.ah-number-level-3 { color: var(--text-muted);  }
+.ah-number-level-4 { color: var(--text-muted);  }
+.ah-number-level-5 { color: var(--text-faint);  }
+.ah-number-level-6 { color: var(--text-faint);  }
+
+/* ─── Reading View (PostProcessor) ───────────────────────────── */
+
+.ah-reading-number {
+  display: inline;
+  font-size: inherit;
+  font-weight: inherit;
+  font-family: inherit;
+  line-height: inherit;
+  color: var(--text-normal);
+  user-select: none;
+  margin-right: 0.25em;
+}
+
+.ah-reading-number-level-1 { color: var(--text-accent); }
+.ah-reading-number-level-2 { color: var(--text-normal); }
+.ah-reading-number-level-3 { color: var(--text-muted);  }
+.ah-reading-number-level-4 { color: var(--text-muted);  }
+.ah-reading-number-level-5 { color: var(--text-faint);  }
+.ah-reading-number-level-6 { color: var(--text-faint);  }
+
+/* ─── Status Bar ─────────────────────────────────────────────── */
+
+.ah-status-bar {
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+  padding: 0 6px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.ah-status-bar:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+/* ─── Scope Card ─────────────────────────────────────────────── */
+
+.ah-scope-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 4px 0 16px;
+  background: var(--background-secondary);
+}
+
+.ah-scope-card-label {
+  font-size: var(--font-ui-smaller);
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.ah-scope-card-empty {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  padding: 8px 0;
+  font-style: italic;
+}
+
+.ah-scope-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.ah-scope-card-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+}
+
+.ah-scope-card-path {
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.ah-scope-card-remove {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  flex-shrink: 0;
+  margin-left: 8px;
+  transition: all 0.15s ease;
+}
+
+.ah-scope-card-remove:hover {
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+}
+
+.ah-scope-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.ah-scope-btn-add {
+  font-size: var(--font-ui-smaller);
+  padding: 5px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border: none;
+  font-weight: 500;
+  transition: opacity 0.15s ease;
+}
+
+.ah-scope-btn-add:hover {
+  opacity: 0.85;
+}
+
+.ah-scope-btn-clear {
+  font-size: var(--font-ui-smaller);
+  padding: 5px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-error);
+  border: 1px solid var(--text-error);
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.ah-scope-btn-clear:hover {
+  background: var(--text-error);
+  color: var(--text-on-accent);
+}
+
+/* ─── Settings Tab ───────────────────────────────────────────── */
+
+.ah-settings-section-header {
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  color: var(--text-normal);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  padding-bottom: 0.4em;
+  border-bottom: 1px solid var(--background-modifier-border);
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.ah-settings-description {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-bottom: 1em;
+  line-height: 1.5;
+}
+
+.ah-settings-info-box {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 0.5em 0 1em 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.ah-settings-info-box code {
+  background: var(--background-modifier-cover);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+/* ─── Command Box ────────────────────────────────────────────── */
+
+.ah-settings-cmd-box {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  padding: 4px 0;
+  margin: 0.5em 0;
+}
+
+.ah-cmd-row {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.ah-cmd-row:last-child {
+  border-bottom: none;
+}
+
+.ah-cmd-name {
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  color: var(--text-normal);
+  margin-bottom: 2px;
+}
+
+.ah-cmd-desc {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ─── Per-Note Configuration Box ─────────────────────────────── */
+
+.ah-settings-pernote-box {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  padding: 8px 0;
+  margin: 0.5em 0 1em 0;
+}
+
+.ah-pernote-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 16px;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  line-height: 1.5;
+  flex-wrap: wrap;
+}
+
+.ah-pernote-code {
+  background: var(--background-modifier-cover);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: var(--font-monospace);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ah-pernote-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.ah-pernote-divider {
+  border-top: 1px solid var(--background-modifier-border);
+  margin: 4px 16px;
+}
+
+/* ─── Quick Config Modal ─────────────────────────────────────── */
+
+.ah-modal-description {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-bottom: 1em;
+}
+
+.ah-modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1em;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* ─── Section Header SVG ─────────────────────────────────────── */
+
+.ah-settings-section-header svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--text-accent);
+  stroke-width: 1.75;
+  fill: none;
+  flex-shrink: 0;
+}
