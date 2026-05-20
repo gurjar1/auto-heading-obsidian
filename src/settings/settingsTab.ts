@@ -2,7 +2,7 @@
  * Auto Heading — Settings Tab
  * SVG icons, toggle-based scope, no scroll jump, cleaner commands.
  */
-import { App, FuzzySuggestModal, MarkdownView, Notice, PluginSettingTab, Setting, TFile } from 'obsidian'
+import { App, FuzzySuggestModal, MarkdownView, Notice, PluginSettingTab, Setting } from 'obsidian'
 import type AutoHeadingPlugin from '../main'
 import { NumberingStyle, isValidNumberingStyle } from '../core/numberingTokens'
 import { VALID_SEPARATORS, NumberingMode } from './settingsTypes'
@@ -30,22 +30,29 @@ class FileSuggestModal extends FuzzySuggestModal<string> {
   onChooseItem(item: string) { this.onSelect(item) }
 }
 
-// ─── SVG Icons ────────────────────────────────────────────────
-const ICONS: Record<string, string> = {
-  mode: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-  scope: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
-  numbering: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>',
-  appearance: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><path d="M17.08 3.22a2.5 2.5 0 0 1 3.54 3.54L7.04 20.34a2.5 2.5 0 0 1-1.17.68l-3.54.89.89-3.54c.13-.43.37-.82.68-1.17z"/></svg>',
-  actions: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-  advanced: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
-  keyboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"/></svg>',
-  commands: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>',
-  note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+// ─── SVG Icons (inserted via createSvg, not innerHTML) ──────────
+function addSvgIcon(parent: HTMLElement, pathData: string[]): void {
+  const svg = parent.createSvg('svg', { attr: { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' } })
+  for (const d of pathData) {
+    svg.createSvg('path', { attr: { d } })
+  }
+}
+
+const ICON_PATHS: Record<string, string[]> = {
+  mode: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'],
+  scope: ['M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'],
+  numbering: ['M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1'],
+  appearance: ['M13.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z', 'M17.08 3.22a2.5 2.5 0 0 1 3.54 3.54L7.04 20.34a2.5 2.5 0 0 1-1.17.68l-3.54.89.89-3.54c.13-.43.37-.82.68-1.17z'],
+  actions: ['M13 2 3 14h9l-1 8 10-12h-9l1-8'],
+  advanced: ['M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'],
+  keyboard: ['M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6zM6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10'],
+  commands: ['M4 17l6-6-6-6M12 19h8'],
+  note: ['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8'],
 }
 
 function sectionHeader(c: HTMLElement, key: string, title: string): void {
   const h = c.createEl('div', { cls: 'ah-settings-section-header' })
-  if (ICONS[key]) { const s = h.createEl('span'); s.innerHTML = ICONS[key] }
+  if (ICON_PATHS[key]) addSvgIcon(h, ICON_PATHS[key])
   h.createEl('span', { text: title })
 }
 
@@ -58,7 +65,9 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     const scrollEl = containerEl.parentElement
     const scrollPos = scrollEl?.scrollTop ?? 0
     containerEl.empty()
-    containerEl.createEl('h2', { text: 'Auto Heading' })
+
+    // Use Setting heading API instead of createEl('h2')
+    new Setting(containerEl).setName('Auto Heading').setHeading()
 
     // ═══ MODE ═══
     sectionHeader(containerEl, 'mode', 'Mode')
@@ -72,9 +81,16 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
       })
 
     if (this.plugin.settings.mode === 'burn-in') {
+      // Build info box using DOM API instead of innerHTML
       const info = containerEl.createEl('div', { cls: 'ah-settings-info-box' })
-      info.innerHTML = `<strong>Auto-number</strong> writes numbers into your file. Numbers appear in TOC, PDF, Publish.<br>
-        Numbers auto-update after edits (configurable delay). <strong>Undo:</strong> <code>Ctrl+Z</code>`
+      const strong1 = info.createEl('strong', { text: 'Auto-number' })
+      info.appendText(' writes numbers into your file. Numbers appear in TOC, PDF, Publish.')
+      info.createEl('br')
+      info.appendText('Numbers auto-update after edits (configurable delay). ')
+      info.createEl('strong', { text: 'Undo:' })
+      info.appendText(' ')
+      info.createEl('code', { text: 'Ctrl+Z' })
+
       new Setting(containerEl).setName('Auto-number delay').setDesc('Wait time after editing before numbers update.')
         .addDropdown(dd => {
           for (const v of [0.5, 1, 1.5, 2, 2.5, 3, 4, 5])
@@ -147,7 +163,6 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
             if (isValidNumberingStyle(v)) {
               this.plugin.settings.levelStyles[i] = v
               await this.plugin.saveSettings()
-              // Force TOC refresh after style change
               this.plugin.triggerBurnIn()
             }
           })
@@ -161,7 +176,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
         const labels: Record<string, string> = { '': 'None', ' ': 'Space', '.': 'Dot (default)', ':': 'Colon', '-': 'Dash', '—': 'Em-dash', ')': 'Paren', ' .': 'Space+Dot', ' :': 'Space+Colon', ' -': 'Space+Dash', ' —': 'Space+Em-dash', ' )': 'Space+Paren' }
         for (const sep of VALID_SEPARATORS) dd.addOption(sep, labels[sep] || sep)
         dd.setValue(this.plugin.settings.separator)
-        dd.onChange(async v => { this.plugin.settings.separator = v as any; await this.plugin.saveSettings() })
+        dd.onChange(async v => { this.plugin.settings.separator = v as typeof VALID_SEPARATORS[number]; await this.plugin.saveSettings() })
       })
     new Setting(containerEl).setName('Level separator').setDesc('Between level numbers (the "." in 1.2.3).')
       .addText(t => t.setPlaceholder('.').setValue(this.plugin.settings.levelSeparator)
@@ -196,13 +211,17 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     sectionHeader(containerEl, 'keyboard', 'Keyboard Shortcuts')
     new Setting(containerEl).setName('Manage hotkeys').setDesc('Opens Obsidian\'s hotkey settings pre-filtered to Auto Heading commands.')
       .addButton(b => b.setButtonText('Open Hotkeys').onClick(() => {
-        const s = (this.app as any).setting; if (!s) return; s.open(); s.openTabById('hotkeys')
-        setTimeout(() => {
-          const t = s.activeTab
-          if (t?.searchInputEl) {
-            t.searchInputEl.value = 'Auto Heading'
-            t.searchInputEl.dispatchEvent(new Event('input'))
-            t.searchInputEl.focus()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const appSetting = (this.app as any).setting as { open: () => void; openTabById: (id: string) => void; activeTab: { searchInputEl: HTMLInputElement } } | undefined
+        if (!appSetting) return
+        appSetting.open()
+        appSetting.openTabById('hotkeys')
+        window.setTimeout(() => {
+          const tab = appSetting.activeTab
+          if (tab?.searchInputEl) {
+            tab.searchInputEl.value = 'Auto Heading'
+            tab.searchInputEl.dispatchEvent(new Event('input'))
+            tab.searchInputEl.focus()
           }
         }, 200)
       }))
@@ -233,24 +252,34 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     sectionHeader(containerEl, 'note', 'Per-Note Configuration')
     containerEl.createEl('p', { text: 'Override global settings for individual notes using front matter or comments.', cls: 'ah-settings-description' })
     const pn = containerEl.createEl('div', { cls: 'ah-settings-pernote-box' })
-    pn.innerHTML = `
-      <div class="ah-pernote-row"><code class="ah-pernote-code">auto-heading: auto</code><span class="ah-pernote-label">Enable numbering for this note</span></div>
-      <div class="ah-pernote-row"><code class="ah-pernote-code">auto-heading: off</code><span class="ah-pernote-label">Disable numbering for this note</span></div>
-      <div class="ah-pernote-row"><code class="ah-pernote-code">auto-heading: auto, skip-h1</code><span class="ah-pernote-label">Enable + skip H1 headings</span></div>
-      <div class="ah-pernote-row"><code class="ah-pernote-code">auto-heading: auto, first-level 2, max 4</code><span class="ah-pernote-label">Custom level range</span></div>
-      <div class="ah-pernote-row"><code class="ah-pernote-code">auto-heading: auto, start-at 3</code><span class="ah-pernote-label">Start numbering from 3</span></div>
-      <div class="ah-pernote-divider"></div>
-      <div class="ah-pernote-row"><strong>Skip a heading:</strong> <span class="ah-pernote-label">Right-click heading → "Skip numbering" — or add <code>&lt;!-- skip --&gt;</code> after it</span></div>
-    `
+    const pnEntries: [string, string][] = [
+      ['auto-heading: auto', 'Enable numbering for this note'],
+      ['auto-heading: off', 'Disable numbering for this note'],
+      ['auto-heading: auto, skip-h1', 'Enable + skip H1 headings'],
+      ['auto-heading: auto, first-level 2, max 4', 'Custom level range'],
+      ['auto-heading: auto, start-at 3', 'Start numbering from 3'],
+    ]
+    for (const [code, label] of pnEntries) {
+      const row = pn.createEl('div', { cls: 'ah-pernote-row' })
+      row.createEl('code', { text: code, cls: 'ah-pernote-code' })
+      row.createEl('span', { text: label, cls: 'ah-pernote-label' })
+    }
+    pn.createEl('div', { cls: 'ah-pernote-divider' })
+    const skipRow = pn.createEl('div', { cls: 'ah-pernote-row' })
+    skipRow.createEl('strong', { text: 'Skip a heading:' })
+    const skipLabel = skipRow.createEl('span', { cls: 'ah-pernote-label' })
+    skipLabel.appendText('Right-click heading \u2192 "Skip numbering" \u2014 or add ')
+    skipLabel.createEl('code', { text: '<!-- skip -->' })
+    skipLabel.appendText(' after it')
 
     // Restore scroll
-    if (scrollEl) requestAnimationFrame(() => { scrollEl.scrollTop = scrollPos })
+    if (scrollEl) window.requestAnimationFrame(() => { scrollEl.scrollTop = scrollPos })
   }
 
   private rebuild(scrollEl: Element | null | undefined): void {
     const pos = scrollEl?.scrollTop ?? 0
     this.display()
-    if (scrollEl) requestAnimationFrame(() => { scrollEl.scrollTop = pos })
+    if (scrollEl) window.requestAnimationFrame(() => { scrollEl.scrollTop = pos })
   }
 
   private renderScopeCard(container: HTMLElement): void {
@@ -262,29 +291,46 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
       const list = card.createEl('div', { cls: 'ah-scope-card-list' })
       for (let i = 0; i < paths.length; i++) {
         const row = list.createEl('div', { cls: 'ah-scope-card-item' })
-        const icon = paths[i].endsWith('.md') ? '📄' : '📁'
+        const icon = paths[i].endsWith('.md') ? '\uD83D\uDCC4' : '\uD83D\uDCC1'
         row.createEl('span', { text: `${icon} ${paths[i]}`, cls: 'ah-scope-card-path' })
-        const rm = row.createEl('button', { text: '✕', cls: 'ah-scope-card-remove' })
-        rm.addEventListener('click', async () => { this.plugin.settings.scopePaths.splice(i, 1); await this.plugin.saveSettings(); this.rebuild(container.parentElement) })
+        const rm = row.createEl('button', { text: '\u2715', cls: 'ah-scope-card-remove' })
+        const idx = i
+        rm.addEventListener('click', () => { void this.removeScopePath(idx, container) })
       }
     }
     const acts = card.createEl('div', { cls: 'ah-scope-card-actions' })
     const af = acts.createEl('button', { text: '+ Add Folder', cls: 'ah-scope-btn-add' })
     af.addEventListener('click', () => {
-      new FolderSuggestModal(this.app, this.plugin.getAllFolderPaths(), async f => {
-        if (!this.plugin.settings.scopePaths.includes(f)) { this.plugin.settings.scopePaths.push(f); await this.plugin.saveSettings(); this.rebuild(container.parentElement) }
-        else new Notice('Already in list.')
-      }).open()
+      new FolderSuggestModal(this.app, this.plugin.getAllFolderPaths(), (f: string) => { void this.addScopePath(f, container) }).open()
     })
     const an = acts.createEl('button', { text: '+ Add Note', cls: 'ah-scope-btn-add' })
     an.addEventListener('click', () => {
-      new FileSuggestModal(this.app, this.app.vault.getMarkdownFiles().map(f => f.path).sort(), async f => {
-        if (!this.plugin.settings.scopePaths.includes(f)) { this.plugin.settings.scopePaths.push(f); await this.plugin.saveSettings(); this.rebuild(container.parentElement) }
-        else new Notice('Already in list.')
-      }).open()
+      new FileSuggestModal(this.app, this.app.vault.getMarkdownFiles().map(f => f.path).sort(), (f: string) => { void this.addScopePath(f, container) }).open()
     })
     const cl = acts.createEl('button', { text: 'Clear All', cls: 'ah-scope-btn-clear' })
-    cl.addEventListener('click', async () => { this.plugin.settings.scopePaths = []; await this.plugin.saveSettings(); this.rebuild(container.parentElement) })
+    cl.addEventListener('click', () => { void this.clearScopePaths(container) })
+  }
+
+  private async removeScopePath(idx: number, container: HTMLElement): Promise<void> {
+    this.plugin.settings.scopePaths.splice(idx, 1)
+    await this.plugin.saveSettings()
+    this.rebuild(container.parentElement)
+  }
+
+  private async addScopePath(path: string, container: HTMLElement): Promise<void> {
+    if (!this.plugin.settings.scopePaths.includes(path)) {
+      this.plugin.settings.scopePaths.push(path)
+      await this.plugin.saveSettings()
+      this.rebuild(container.parentElement)
+    } else {
+      new Notice('Already in list.')
+    }
+  }
+
+  private async clearScopePaths(container: HTMLElement): Promise<void> {
+    this.plugin.settings.scopePaths = []
+    await this.plugin.saveSettings()
+    this.rebuild(container.parentElement)
   }
 
   private doBurnIn(): void {

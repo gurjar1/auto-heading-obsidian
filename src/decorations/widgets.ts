@@ -20,7 +20,7 @@ export class HeadingNumberWidget extends WidgetType {
   }
 
   toDOM(_view: EditorView): HTMLElement {
-    const span = document.createElement('span')
+    const span = activeDocument.createElement('span')
     span.className = `ah-number ah-number-level-${this.level}`
     span.textContent = this.displayText
     span.style.opacity = String(this.opacity)

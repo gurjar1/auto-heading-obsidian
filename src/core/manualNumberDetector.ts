@@ -33,13 +33,13 @@ export type DetectedNumberStyle =
 const PATTERNS: { regex: RegExp; style: DetectedNumberStyle; confidence: 'high' | 'medium' | 'low' }[] = [
   // Hierarchical: 1.2.3, 1.2.3., 1.2, etc. (high confidence due to structure)
   {
-    regex: /^(\d+(?:\.\d+)+)\.?\s*[):—\-]?\s*/,
+    regex: /^(\d+(?:\.\d+)+)\.?\s*[):—-]?\s*/,
     style: 'hierarchical',
     confidence: 'high',
   },
   // Arabic with separator: "1. ", "1: ", "1) ", "1 - "
   {
-    regex: /^(\d+)\s*[.):—\-]\s+/,
+    regex: /^(\d+)\s*[.):—-]\s+/,
     style: 'arabic',
     confidence: 'high',
   },
@@ -51,7 +51,7 @@ const PATTERNS: { regex: RegExp; style: DetectedNumberStyle; confidence: 'high' 
   },
   // Uppercase letter with separator: "A. ", "B) ", "C: "
   {
-    regex: /^([A-Z])\.?\s*[):—\-]?\s+/,
+    regex: /^([A-Z])\.?\s*[):—-]?\s+/,
     style: 'letter-upper',
     confidence: 'medium',
   },

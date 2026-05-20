@@ -7,7 +7,7 @@
 
 import { App, Modal, Setting } from 'obsidian'
 import type AutoHeadingPlugin from '../main'
-import { isValidNumberingStyle, NumberingStyle } from '../core/numberingTokens'
+import { NumberingStyle } from '../core/numberingTokens'
 import { VALID_SEPARATORS } from './settingsTypes'
 
 export class QuickConfigModal extends Modal {

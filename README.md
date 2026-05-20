@@ -2,15 +2,35 @@
 
 Automatic heading numbering for Obsidian. Numbers your headings in real time and writes them into the file so they appear in the table of contents, PDF exports, and Obsidian Publish.
 
-## What it does
+## Features
 
-When you write a document with multiple headings, Auto Heading assigns sequential numbers to each one. If you add, remove, or reorder headings, the numbers update automatically. The plugin supports Arabic digits, uppercase and lowercase letters, and Roman numerals at every heading level, and you can mix styles freely.
+- Auto-number headings in real time and write numbers directly into your Markdown files
+- Numbers appear in the sidebar TOC, PDF exports, and Obsidian Publish
+- Support for Arabic digits, uppercase and lowercase letters, and Roman numerals at every heading level
+- Mix numbering styles freely across levels (e.g., `1.A.a.I.i.1`)
+- Visual-only mode that overlays numbers without modifying files
+- Per-note control via front matter or folder/file selection
+- Smart detection of existing manually-typed numbers
+- Full undo support with Ctrl+Z
 
-Numbers are written directly into your markdown files by default, which means they show up everywhere your document goes: the sidebar TOC, exported PDFs, published sites. If you prefer to keep your files clean, there is a visual-only mode that overlays numbers without touching the text.
+## Getting started
 
-## How to install (manual)
+1. Install the plugin (see below).
+2. Open the plugin settings (Settings > Auto Heading).
+3. Under "Which Notes to Number", enable at least one scope option. The simplest is "Notes with front matter", which requires you to add `auto-heading: auto` to a note's front matter before it gets numbered.
+4. Open a note, add the front matter key, and your headings will be numbered within a couple of seconds.
 
-This plugin is not yet available in the Obsidian Community Plugins directory. To install it manually:
+If you want every note in your vault numbered automatically, enable "All notes in vault" instead.
+
+## Installation
+
+### From Obsidian Community Plugins (when available)
+
+1. Open Obsidian Settings > Community Plugins > Browse.
+2. Search for "Auto Heading".
+3. Click Install, then Enable.
+
+### Manual installation
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/gurjar1/auto-heading-obsidian/releases/latest).
 2. In your vault, navigate to `.obsidian/plugins/` and create a folder called `auto-heading`.
@@ -18,14 +38,6 @@ This plugin is not yet available in the Obsidian Community Plugins directory. To
 4. Open Obsidian, go to Settings, then Community Plugins, and enable "Auto Heading".
 
 To update later, repeat the same steps with the newer release files.
-
-## Getting started
-
-1. Open the plugin settings (Settings > Auto Heading).
-2. Under "Which Notes to Number", enable at least one scope option. The simplest is "Notes with front matter", which requires you to add `auto-heading: auto` to a note's front matter before it gets numbered.
-3. Open a note, add the front matter key, and your headings will be numbered within a couple of seconds.
-
-If you want every note in your vault numbered automatically, enable "All notes in vault" instead.
 
 ## Modes
 
@@ -51,7 +63,7 @@ With six heading levels, you can create schemes like `1.A.a.I.i.1` or keep every
 
 ## Per-note configuration
 
-Add a `auto-heading` key to a note's front matter to control its behavior:
+Add an `auto-heading` key to a note's front matter to control its behavior:
 
 ```yaml
 ---

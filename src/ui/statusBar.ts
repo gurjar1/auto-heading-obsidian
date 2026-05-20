@@ -34,11 +34,11 @@ export class StatusBarManager {
     if (!this.statusBarEl) return
 
     if (!this.plugin.settings.showStatusBar) {
-      this.statusBarEl.style.display = 'none'
+      this.statusBarEl.addClass('ah-status-bar-hidden')
       return
     }
 
-    this.statusBarEl.style.display = ''
+    this.statusBarEl.removeClass('ah-status-bar-hidden')
 
     const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView)
 

@@ -23,7 +23,7 @@ const FRONT_MATTER_KEY = 'auto-heading'
 export function parsePerNoteSettings(metadata: CachedMetadata): PerNoteOverrides | null {
   if (!metadata.frontmatter) return null
 
-  const entry = parseFrontMatterEntry(metadata.frontmatter, FRONT_MATTER_KEY)
+  const entry: unknown = parseFrontMatterEntry(metadata.frontmatter, FRONT_MATTER_KEY)
   if (entry === undefined || entry === null) return null
 
   const entryString = String(entry).trim()

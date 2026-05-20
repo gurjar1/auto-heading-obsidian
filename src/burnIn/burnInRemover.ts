@@ -10,7 +10,7 @@
 
 import { Editor, EditorChange, HeadingCache } from 'obsidian'
 import { detectManualNumber } from '../core/manualNumberDetector'
-import { AH_MARKER, hasPluginNumber, stripPluginNumber } from './burnInEngine'
+import { hasPluginNumber, stripPluginNumber } from './burnInEngine'
 
 // ─── Types ────────────────────────────────────────────────────────────
 

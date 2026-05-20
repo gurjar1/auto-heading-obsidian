@@ -120,7 +120,6 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       const skipMarker = plugin.settings.skipMarker || 'skip'
       const blockRef = ` ^${skipMarker}`
       const commentShort = ' <!-- skip -->'
-      const commentLong = ' <!-- no-number -->'
 
       // Check if already marked
       const isMarked =
@@ -170,7 +169,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       if (!view?.file) return false
       if (checking) return true
 
-      plugin.app.fileManager.processFrontMatter(view.file, (fm) => {
+      void plugin.app.fileManager.processFrontMatter(view.file, (fm: Record<string, unknown>) => {
         const value = settingsToFrontMatterValue({
           enabled: true,
           skipH1: plugin.settings.skipH1,
@@ -209,7 +208,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
         const num = h.isSkipped ? '' : h.formattedNumber + s.separator + ' '
         lines.push(`${indent}${num}${h.cleanTitle}`)
       }
-      navigator.clipboard.writeText(lines.join('\n'))
+      void navigator.clipboard.writeText(lines.join('\n'))
       new Notice(`Auto Heading: Copied ${analysis.totalCount} headings`)
       return true
     },

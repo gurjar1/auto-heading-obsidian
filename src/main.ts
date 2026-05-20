@@ -9,6 +9,7 @@
  */
 
 import { MarkdownView, Plugin, TFile, TFolder, debounce } from 'obsidian'
+import type { EditorView } from '@codemirror/view'
 import { AutoHeadingSettings, DEFAULT_SETTINGS, mergeSettings } from './settings/settingsTypes'
 import { AutoHeadingSettingTab } from './settings/settingsTab'
 import { parsePerNoteSettings } from './settings/perNoteSettings'
@@ -95,18 +96,18 @@ export default class AutoHeadingPlugin extends Plugin {
   // ─── Settings ──────────────────────────────────────────────
 
   async loadSettings(): Promise<void> {
-    const data = await this.loadData()
+    const data: Record<string, unknown> | null = await this.loadData()
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data)
 
     // Migrate old scope enum to new toggle model
-    if (data && (data as any).scope && !('scopeAll' in data)) {
-      const oldScope = (data as any).scope as string
+    if (data && 'scope' in data && !('scopeAll' in data)) {
+      const oldScope = String(data.scope)
       this.settings.scopeAll = (oldScope === 'all')
       this.settings.scopeFrontmatter = (oldScope === 'frontmatter')
       this.settings.scopeSelected = (oldScope === 'include' || oldScope === 'exclude')
       // Migrate old paths
-      if ((data as any).includePaths) this.settings.scopePaths = (data as any).includePaths
-      if ((data as any).excludePaths) this.settings.scopePaths = (data as any).excludePaths
+      if ('includePaths' in data && Array.isArray(data.includePaths)) this.settings.scopePaths = data.includePaths as string[]
+      if ('excludePaths' in data && Array.isArray(data.excludePaths)) this.settings.scopePaths = data.excludePaths as string[]
     }
 
     // Ensure firstLevel is consistent with skipH1
@@ -253,7 +254,7 @@ export default class AutoHeadingPlugin extends Plugin {
 
     this.app.workspace.iterateAllLeaves((leaf) => {
       if (leaf.view instanceof MarkdownView) {
-        const cmView = (leaf.view.editor as any).cm
+        const cmView = (leaf.view.editor as unknown as { cm: EditorView }).cm
         if (cmView) cmView.dispatch({})
       }
     })

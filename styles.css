@@ -62,6 +62,10 @@
   background-color: var(--background-modifier-hover);
 }
 
+.ah-status-bar-hidden {
+  display: none;
+}
+
 /* ─── Scope Card ─────────────────────────────────────────────── */
 
 .ah-scope-card {

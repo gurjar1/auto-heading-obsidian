@@ -160,7 +160,7 @@ export function createHeadingPostProcessor() {
       const formatted = settings.numberFormat.replace('{n}', numberStr)
 
       // Create the number element and prepend it to the heading
-      const numberSpan = document.createElement('span')
+      const numberSpan = activeDocument.createElement('span')
       numberSpan.className = `ah-reading-number ah-reading-number-level-${level}`
       numberSpan.textContent = formatted + settings.separator + ' '
       numberSpan.style.opacity = String(settings.numberOpacity)
