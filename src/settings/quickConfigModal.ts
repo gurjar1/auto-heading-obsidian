@@ -152,6 +152,18 @@ export class QuickConfigModal extends Modal {
           this.plugin.refreshDecorations()
         }))
 
+    // Heading Indentation
+    new Setting(contentEl)
+      .setName('Visual indentation')
+      .setDesc('Indent heading lines by level')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.headingIndent)
+        .onChange(async (value) => {
+          this.plugin.settings.headingIndent = value
+          await this.plugin.saveSettings()
+          this.plugin.refreshDecorations()
+        }))
+
     // Close button
     const buttonContainer = contentEl.createEl('div', { cls: 'ah-modal-buttons' })
     const closeBtn = buttonContainer.createEl('button', { text: 'Done', cls: 'mod-cta' })

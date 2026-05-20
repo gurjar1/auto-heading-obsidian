@@ -190,6 +190,42 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
         dd.setValue(String(this.plugin.settings.numberOpacity)); dd.onChange(async v => { this.plugin.settings.numberOpacity = parseFloat(v); await this.plugin.saveSettings() })
       })
 
+    // ── Heading Indentation ──
+    new Setting(containerEl).setName('Visual heading indentation').setDesc('Indent heading lines based on their level to create a visual tree.')
+      .addToggle(t => t.setValue(this.plugin.settings.headingIndent)
+        .onChange(async v => { this.plugin.settings.headingIndent = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
+
+    if (this.plugin.settings.headingIndent) {
+      new Setting(containerEl).setName('Indent size').setDesc('Pixels of indentation per heading level.')
+        .addDropdown(dd => {
+          for (const v of [8, 12, 16, 20, 24, 28, 32, 40]) dd.addOption(String(v), `${v}px`)
+          dd.setValue(String(this.plugin.settings.headingIndentSize))
+          dd.onChange(async v => { this.plugin.settings.headingIndentSize = parseInt(v); await this.plugin.saveSettings(); this.rebuild(scrollEl) })
+        })
+
+      new Setting(containerEl).setName('Show indent guides').setDesc('Draw subtle vertical lines alongside indented headings.')
+        .addToggle(t => t.setValue(this.plugin.settings.headingIndentGuides)
+          .onChange(async v => { this.plugin.settings.headingIndentGuides = v; await this.plugin.saveSettings() }))
+
+      // Live preview
+      const previewBox = containerEl.createEl('div', { cls: 'ah-indent-preview' })
+      const indentPx = this.plugin.settings.headingIndentSize
+      const previewLines = [
+        { label: '# Title', level: 1 },
+        { label: '## Section', level: 2 },
+        { label: '### Subsection', level: 3 },
+        { label: '#### Detail', level: 4 },
+      ]
+      for (const pl of previewLines) {
+        const indent = pl.level === 1 ? 0 : (pl.level - 1) * indentPx
+        const line = previewBox.createEl('div', {
+          text: pl.label,
+          cls: 'ah-indent-preview-line',
+        })
+        line.style.paddingLeft = `${indent}px`
+      }
+    }
+
     // ═══ QUICK ACTIONS ═══
     sectionHeader(containerEl, 'actions', 'Quick Actions — This Note Only')
     containerEl.createEl('p', { text: 'These buttons apply to the currently open note only. Use Ctrl+Z to undo.', cls: 'ah-settings-description' })
@@ -258,6 +294,8 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
       ['auto-heading: auto, skip-h1', 'Enable + skip H1 headings'],
       ['auto-heading: auto, first-level 2, max 4', 'Custom level range'],
       ['auto-heading: auto, start-at 3', 'Start numbering from 3'],
+      ['auto-heading: auto, indent', 'Enable visual heading indentation'],
+      ['auto-heading: auto, indent, indent-size 24', 'Indent with custom size'],
     ]
     for (const [code, label] of pnEntries) {
       const row = pn.createEl('div', { cls: 'ah-pernote-row' })

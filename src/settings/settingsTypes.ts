@@ -54,6 +54,14 @@ export interface AutoHeadingSettings {
   showStatusBar: boolean
   numberFormat: string
 
+  // ── Visual Heading Indentation ───────────────────────────────
+  /** Indent headings visually based on their level */
+  headingIndent: boolean
+  /** Pixels of indent per heading level */
+  headingIndentSize: number
+  /** Show subtle vertical guide lines alongside indented headings */
+  headingIndentGuides: boolean
+
   /** Legacy — kept for mergeSettings compatibility */
   enabled: boolean
 }
@@ -82,6 +90,10 @@ export const DEFAULT_SETTINGS: Readonly<AutoHeadingSettings> = {
   showStatusBar: true,
   numberFormat: '{n}',
 
+  headingIndent: false,
+  headingIndentSize: 20,
+  headingIndentGuides: false,
+
   enabled: false,
 }
 
@@ -99,6 +111,9 @@ export interface PerNoteOverrides {
   startAt?: string
   skipMarker?: string
   numberFormat?: string
+  headingIndent?: boolean
+  headingIndentSize?: number
+  headingIndentGuides?: boolean
 }
 
 export function mergeSettings(
@@ -119,5 +134,8 @@ export function mergeSettings(
   if (overrides.startAt !== undefined) merged.startAt = overrides.startAt
   if (overrides.skipMarker !== undefined) merged.skipMarker = overrides.skipMarker
   if (overrides.numberFormat !== undefined) merged.numberFormat = overrides.numberFormat
+  if (overrides.headingIndent !== undefined) merged.headingIndent = overrides.headingIndent
+  if (overrides.headingIndentSize !== undefined) merged.headingIndentSize = overrides.headingIndentSize
+  if (overrides.headingIndentGuides !== undefined) merged.headingIndentGuides = overrides.headingIndentGuides
   return merged
 }

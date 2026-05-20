@@ -259,6 +259,12 @@ export default class AutoHeadingPlugin extends Plugin {
       }
     })
 
+    // Set indent size CSS custom property on root for all views
+    activeDocument.documentElement.style.setProperty(
+      '--ah-indent-size',
+      `${effectiveSettings.headingIndentSize}px`,
+    )
+
     this.updateStatusBar()
   }
 

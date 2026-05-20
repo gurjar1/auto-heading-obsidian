@@ -8,6 +8,7 @@ Automatic heading numbering for Obsidian. Numbers your headings in real time and
 - Numbers appear in the sidebar TOC, PDF exports, and Obsidian Publish
 - Support for Arabic digits, uppercase and lowercase letters, and Roman numerals at every heading level
 - Mix numbering styles freely across levels (e.g., `1.A.a.I.i.1`)
+- Visual heading indentation that creates a tree-like outline in your editor
 - Visual-only mode that overlays numbers without modifying files
 - Per-note control via front matter or folder/file selection
 - Smart detection of existing manually-typed numbers
@@ -61,6 +62,38 @@ Each heading level can use a different style:
 
 With six heading levels, you can create schemes like `1.A.a.I.i.1` or keep everything as `1.1.1`.
 
+## Visual heading indentation
+
+Heading indentation shifts heading lines to the right based on their depth, creating a visual tree structure that makes document hierarchy immediately obvious. This is a purely visual effect and does not modify your files.
+
+To enable it, open plugin settings, scroll to the Appearance section, and turn on "Visual heading indentation". You can also adjust the indent size (pixels per level) and optionally enable subtle vertical guide lines that connect related heading levels.
+
+The indentation works in both Live Preview and Reading View. A small preview in the settings panel shows how the current indent size will look.
+
+You can control indentation on individual notes through front matter:
+
+```yaml
+---
+auto-heading: auto, indent
+---
+```
+
+Or with a custom indent size:
+
+```yaml
+---
+auto-heading: auto, indent, indent-size 24, indent-guides
+---
+```
+
+To disable indentation for a specific note when it is enabled globally, use `no-indent`:
+
+```yaml
+---
+auto-heading: auto, no-indent
+---
+```
+
 ## Per-note configuration
 
 Add an `auto-heading` key to a note's front matter to control its behavior:
@@ -79,7 +112,7 @@ auto-heading: auto, skip-h1, first-level 2, max 4
 ---
 ```
 
-Available options: `auto`, `off`, `skip-h1`, `no-skip-h1`, `first-level N`, `max N`, `start-at N`, `style 1.A.a`, `sep "."`, `format "{n}"`, `skip-marker text`.
+Available options: `auto`, `off`, `skip-h1`, `no-skip-h1`, `first-level N`, `max N`, `start-at N`, `style 1.A.a`, `sep "."`, `format "{n}"`, `skip-marker text`, `indent`, `no-indent`, `indent-size N`, `indent-guides`, `no-indent-guides`.
 
 To exclude a single heading from numbering, add `<!-- skip -->` after it or right-click the heading and choose "Skip numbering".
 

@@ -315,3 +315,105 @@
   fill: none;
   flex-shrink: 0;
 }
+
+/* ─── Visual Heading Indentation ─────────────────────────────── */
+
+/*
+ * Indent classes applied to heading lines (both editor and reading view).
+ * The indent amount is controlled via the --ah-indent-size custom property
+ * set on the container or body. Each level multiplies by its depth offset.
+ *
+ * Level 1 is never indented (it is the root). Levels 2-6 are indented
+ * relative to a configurable base level.
+ */
+
+:root {
+  --ah-indent-size: 20px;
+}
+
+/* ── Live Preview (CodeMirror 6 line classes) ───────────────── */
+
+.ah-indent-1 { padding-left: 0 !important; }
+.ah-indent-2 { padding-left: calc(var(--ah-indent-size) * 1) !important; }
+.ah-indent-3 { padding-left: calc(var(--ah-indent-size) * 2) !important; }
+.ah-indent-4 { padding-left: calc(var(--ah-indent-size) * 3) !important; }
+.ah-indent-5 { padding-left: calc(var(--ah-indent-size) * 4) !important; }
+.ah-indent-6 { padding-left: calc(var(--ah-indent-size) * 5) !important; }
+
+/* ── Reading View (heading elements) ────────────────────────── */
+
+.markdown-rendered .ah-indent-1 { padding-left: 0; }
+.markdown-rendered .ah-indent-2 { padding-left: calc(var(--ah-indent-size) * 1); }
+.markdown-rendered .ah-indent-3 { padding-left: calc(var(--ah-indent-size) * 2); }
+.markdown-rendered .ah-indent-4 { padding-left: calc(var(--ah-indent-size) * 3); }
+.markdown-rendered .ah-indent-5 { padding-left: calc(var(--ah-indent-size) * 4); }
+.markdown-rendered .ah-indent-6 { padding-left: calc(var(--ah-indent-size) * 5); }
+
+/* ── Indent Guide Lines ─────────────────────────────────────── */
+
+/*
+ * Subtle vertical guide drawn via ::before pseudo-element.
+ * Uses the theme's border color at low opacity for a clean look.
+ * Only shown on levels 2+ (level 1 has no indent to guide from).
+ */
+
+.ah-indent-guide.ah-indent-2::before,
+.ah-indent-guide.ah-indent-3::before,
+.ah-indent-guide.ah-indent-4::before,
+.ah-indent-guide.ah-indent-5::before,
+.ah-indent-guide.ah-indent-6::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--background-modifier-border);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Positions for each guide level (aligns with the start of its parent level) */
+.ah-indent-guide.ah-indent-2::before {
+  left: calc(var(--ah-indent-size) * 0.5);
+}
+.ah-indent-guide.ah-indent-3::before {
+  left: calc(var(--ah-indent-size) * 1.5);
+}
+.ah-indent-guide.ah-indent-4::before {
+  left: calc(var(--ah-indent-size) * 2.5);
+}
+.ah-indent-guide.ah-indent-5::before {
+  left: calc(var(--ah-indent-size) * 3.5);
+}
+.ah-indent-guide.ah-indent-6::before {
+  left: calc(var(--ah-indent-size) * 4.5);
+}
+
+/* Ensure heading lines have relative position for ::before guides */
+.ah-indent-guide {
+  position: relative;
+}
+
+/* ── Settings preview stripe ─────────────────────────────────── */
+
+.ah-indent-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  margin: 6px 0 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.ah-indent-preview-line {
+  transition: padding-left 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

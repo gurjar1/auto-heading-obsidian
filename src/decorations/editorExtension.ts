@@ -116,6 +116,11 @@ interface DecoInfo {
   type: 'widget' | 'replace'
 }
 
+interface LineDecoInfo {
+  lineFrom: number
+  level: number
+}
+
 function buildDecorations(state: EditorState): DecorationSet {
   lastBuiltVersion = settingsVersion
 
@@ -239,6 +244,50 @@ function buildDecorations(state: EditorState): DecorationSet {
   return builder.finish()
 }
 
+/**
+ * Build line-level decorations for heading indentation.
+ * Applies CSS classes like 'ah-indent-2', 'ah-indent-guide' to heading lines.
+ */
+function buildLineDecorations(state: EditorState): DecorationSet {
+  if (!noteEnabled || !currentSettings.enabled || !currentSettings.headingIndent) {
+    return Decoration.none
+  }
+
+  const headings = extractHeadingsFromDoc(state)
+  if (headings.length === 0) return Decoration.none
+
+  const lineDecos: LineDecoInfo[] = []
+
+  for (const heading of headings) {
+    const line = state.doc.line(heading.lineNumber + 1)
+    const classes = [`ah-indent-${heading.level}`]
+    if (currentSettings.headingIndentGuides && heading.level > 1) {
+      classes.push('ah-indent-guide')
+    }
+    lineDecos.push({ lineFrom: line.from, level: heading.level })
+  }
+
+  if (lineDecos.length === 0) return Decoration.none
+
+  // Sort by position (required by RangeSetBuilder)
+  lineDecos.sort((a, b) => a.lineFrom - b.lineFrom)
+
+  const builder = new RangeSetBuilder<Decoration>()
+  for (const info of lineDecos) {
+    const classes = [`ah-indent-${info.level}`]
+    if (currentSettings.headingIndentGuides && info.level > 1) {
+      classes.push('ah-indent-guide')
+    }
+    builder.add(
+      info.lineFrom,
+      info.lineFrom,
+      Decoration.line({ attributes: { class: classes.join(' ') } }),
+    )
+  }
+
+  return builder.finish()
+}
+
 // ─── StateField Definition ────────────────────────────────────────────
 
 export const headingNumberField = StateField.define<DecorationSet>({
@@ -258,6 +307,23 @@ export const headingNumberField = StateField.define<DecorationSet>({
   },
 })
 
+export const headingIndentField = StateField.define<DecorationSet>({
+  create(state: EditorState): DecorationSet {
+    return buildLineDecorations(state)
+  },
+
+  update(value: DecorationSet, tr: Transaction): DecorationSet {
+    if (tr.docChanged) return buildLineDecorations(tr.state)
+    if (lastBuiltVersion !== settingsVersion) return buildLineDecorations(tr.state)
+    if (tr.effects.length > 0) return buildLineDecorations(tr.state)
+    return value
+  },
+
+  provide(field: StateField<DecorationSet>) {
+    return EditorView.decorations.from(field)
+  },
+})
+
 export function getEditorExtensions() {
-  return [headingNumberField]
+  return [headingNumberField, headingIndentField]
 }

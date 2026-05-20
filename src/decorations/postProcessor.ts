@@ -168,6 +168,19 @@ export function createHeadingPostProcessor() {
 
       // Insert as the first child of the heading element
       headingEl.insertBefore(numberSpan, headingEl.firstChild)
+
+      // ── Visual Heading Indentation ──
+      if (settings.headingIndent) {
+        headingEl.classList.add(`ah-indent-${level}`)
+        if (settings.headingIndentGuides && level > 1) {
+          headingEl.classList.add('ah-indent-guide')
+        }
+        // Set indent size as CSS custom property on the element
+        ;(headingEl as HTMLElement).style.setProperty(
+          '--ah-indent-size',
+          `${settings.headingIndentSize}px`,
+        )
+      }
     }
   }
 }

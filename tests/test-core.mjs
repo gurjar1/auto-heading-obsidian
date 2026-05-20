@@ -836,6 +836,112 @@ test('scopeAll + scopeSelected: all wins', () => {
   assertEqual(isFileInScope('random/file.md', true, true, ['notes']), true)
 })
 
+// ─── Indent Front Matter Parsing Tests ──────────────────────────────────
+
+console.log('\n📐 Indent Front Matter Parsing')
+
+// Extend parseFmValue to handle indent options (mirrors perNoteSettings.ts)
+function parseFmValueExtended(entryString) {
+  if (!entryString || entryString.trim() === '') return null
+  const trimmed = entryString.trim()
+  
+  const overrides = {}
+  
+  if (trimmed === 'off' || trimmed === 'disabled' || trimmed === 'false') {
+    overrides.disabled = true
+    return overrides
+  }
+  if (trimmed === 'auto' || trimmed === 'on' || trimmed === 'true') {
+    overrides.enabled = true
+    return overrides
+  }
+
+  const parts = trimmed.split(',')
+  for (const part of parts) {
+    const t = part.trim()
+    if (t === 'auto' || t === 'on') overrides.enabled = true
+    else if (t === 'off') overrides.disabled = true
+    else if (t === 'skip-h1') overrides.skipH1 = true
+    else if (t === 'no-skip-h1') overrides.skipH1 = false
+    else if (t.startsWith('first-level')) {
+      const val = parseInt(t.replace('first-level', '').trim(), 10)
+      if (!isNaN(val) && val >= 1 && val <= 6) overrides.firstLevel = val
+    }
+    else if (t.startsWith('max')) {
+      const val = parseInt(t.replace('max', '').trim(), 10)
+      if (!isNaN(val) && val >= 1 && val <= 6) overrides.maxLevel = val
+    }
+    else if (t.startsWith('start-at')) {
+      const val = t.replace('start-at', '').trim()
+      if (val.length > 0) overrides.startAt = val
+    }
+    else if (t === 'indent') overrides.headingIndent = true
+    else if (t === 'no-indent') overrides.headingIndent = false
+    else if (t.startsWith('indent-size')) {
+      const val = parseInt(t.replace('indent-size', '').trim(), 10)
+      if (!isNaN(val) && val >= 0 && val <= 60) overrides.headingIndentSize = val
+    }
+    else if (t === 'indent-guides') overrides.headingIndentGuides = true
+    else if (t === 'no-indent-guides') overrides.headingIndentGuides = false
+  }
+
+  return Object.keys(overrides).length > 0 ? overrides : null
+}
+
+test('auto-heading: auto, indent → enabled + indent', () => {
+  const r = parseFmValueExtended('auto, indent')
+  assertEqual(r?.enabled, true)
+  assertEqual(r?.headingIndent, true)
+})
+
+test('auto-heading: auto, no-indent → enabled + no-indent', () => {
+  const r = parseFmValueExtended('auto, no-indent')
+  assertEqual(r?.enabled, true)
+  assertEqual(r?.headingIndent, false)
+})
+
+test('auto-heading: auto, indent, indent-size 24 → size 24', () => {
+  const r = parseFmValueExtended('auto, indent, indent-size 24')
+  assertEqual(r?.enabled, true)
+  assertEqual(r?.headingIndent, true)
+  assertEqual(r?.headingIndentSize, 24)
+})
+
+test('auto-heading: auto, indent-size 0 → size 0', () => {
+  const r = parseFmValueExtended('auto, indent-size 0')
+  assertEqual(r?.headingIndentSize, 0)
+})
+
+test('auto-heading: auto, indent-size 61 → rejected (out of range)', () => {
+  const r = parseFmValueExtended('auto, indent-size 61')
+  assertEqual(r?.headingIndentSize, undefined)
+})
+
+test('auto-heading: auto, indent-guides → guides enabled', () => {
+  const r = parseFmValueExtended('auto, indent-guides')
+  assertEqual(r?.headingIndentGuides, true)
+})
+
+test('auto-heading: auto, no-indent-guides → guides disabled', () => {
+  const r = parseFmValueExtended('auto, no-indent-guides')
+  assertEqual(r?.headingIndentGuides, false)
+})
+
+test('auto-heading: auto, indent, indent-size 32, indent-guides', () => {
+  const r = parseFmValueExtended('auto, indent, indent-size 32, indent-guides')
+  assertEqual(r?.enabled, true)
+  assertEqual(r?.headingIndent, true)
+  assertEqual(r?.headingIndentSize, 32)
+  assertEqual(r?.headingIndentGuides, true)
+})
+
+test('auto-heading: auto, skip-h1, indent → combined old + new options', () => {
+  const r = parseFmValueExtended('auto, skip-h1, indent')
+  assertEqual(r?.enabled, true)
+  assertEqual(r?.skipH1, true)
+  assertEqual(r?.headingIndent, true)
+})
+
 // ─── Summary ────────────────────────────────────────────────────────────
 
 console.log(`\n${'═'.repeat(50)}`)

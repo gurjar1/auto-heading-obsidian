@@ -103,6 +103,19 @@ export function parsePerNoteSettings(metadata: CachedMetadata): PerNoteOverrides
       if (val.length > 0) {
         overrides.skipMarker = val
       }
+    } else if (trimmed === 'indent') {
+      overrides.headingIndent = true
+    } else if (trimmed === 'no-indent') {
+      overrides.headingIndent = false
+    } else if (trimmed.startsWith('indent-size')) {
+      const val = parseInt(trimmed.replace('indent-size', '').trim(), 10)
+      if (!isNaN(val) && val >= 0 && val <= 60) {
+        overrides.headingIndentSize = val
+      }
+    } else if (trimmed === 'indent-guides') {
+      overrides.headingIndentGuides = true
+    } else if (trimmed === 'no-indent-guides') {
+      overrides.headingIndentGuides = false
     }
   }
 
@@ -159,6 +172,11 @@ export function settingsToFrontMatterValue(overrides: PerNoteOverrides): string 
   if (overrides.separator !== undefined) parts.push(`sep "${overrides.separator}"`)
   if (overrides.numberFormat !== undefined) parts.push(`format "${overrides.numberFormat}"`)
   if (overrides.skipMarker !== undefined) parts.push(`skip-marker ${overrides.skipMarker}`)
+  if (overrides.headingIndent === true) parts.push('indent')
+  if (overrides.headingIndent === false) parts.push('no-indent')
+  if (overrides.headingIndentSize !== undefined) parts.push(`indent-size ${overrides.headingIndentSize}`)
+  if (overrides.headingIndentGuides === true) parts.push('indent-guides')
+  if (overrides.headingIndentGuides === false) parts.push('no-indent-guides')
 
   return parts.join(', ')
 }
