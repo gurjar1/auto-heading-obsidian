@@ -332,13 +332,17 @@
 }
 
 /* ── Live Preview (CodeMirror 6 line classes) ───────────────── */
+/*
+ * Uses .cm-editor .cm-line prefix for sufficient specificity to override
+ * theme styles without resorting to !important.
+ */
 
-.ah-indent-1 { padding-left: 0 !important; }
-.ah-indent-2 { padding-left: calc(var(--ah-indent-size) * 1) !important; }
-.ah-indent-3 { padding-left: calc(var(--ah-indent-size) * 2) !important; }
-.ah-indent-4 { padding-left: calc(var(--ah-indent-size) * 3) !important; }
-.ah-indent-5 { padding-left: calc(var(--ah-indent-size) * 4) !important; }
-.ah-indent-6 { padding-left: calc(var(--ah-indent-size) * 5) !important; }
+.cm-editor .cm-line.ah-indent-1 { padding-left: 0; }
+.cm-editor .cm-line.ah-indent-2 { padding-left: calc(var(--ah-indent-size) * 1); }
+.cm-editor .cm-line.ah-indent-3 { padding-left: calc(var(--ah-indent-size) * 2); }
+.cm-editor .cm-line.ah-indent-4 { padding-left: calc(var(--ah-indent-size) * 3); }
+.cm-editor .cm-line.ah-indent-5 { padding-left: calc(var(--ah-indent-size) * 4); }
+.cm-editor .cm-line.ah-indent-6 { padding-left: calc(var(--ah-indent-size) * 5); }
 
 /* ── Reading View (heading elements) ────────────────────────── */
 

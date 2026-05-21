@@ -260,10 +260,6 @@ function buildLineDecorations(state: EditorState): DecorationSet {
 
   for (const heading of headings) {
     const line = state.doc.line(heading.lineNumber + 1)
-    const classes = [`ah-indent-${heading.level}`]
-    if (currentSettings.headingIndentGuides && heading.level > 1) {
-      classes.push('ah-indent-guide')
-    }
     lineDecos.push({ lineFrom: line.from, level: heading.level })
   }
 
