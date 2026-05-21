@@ -58,12 +58,16 @@ function sectionHeader(c: HTMLElement, key: string, title: string): void {
 
 export class AutoHeadingSettingTab extends PluginSettingTab {
   plugin: AutoHeadingPlugin
+  /** Scroll position to restore after a rebuild; null means fresh open */
+  private _pendingScrollRestore: number | null = null
+
   constructor(app: App, plugin: AutoHeadingPlugin) { super(app, plugin); this.plugin = plugin }
 
   display(): void {
     const { containerEl } = this
     const scrollEl = containerEl.parentElement
-    const scrollPos = scrollEl?.scrollTop ?? 0
+    const restorePos = this._pendingScrollRestore
+    this._pendingScrollRestore = null
     containerEl.empty()
 
     // Use Setting heading API instead of createEl('h2')
@@ -310,14 +314,21 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     skipLabel.createEl('code', { text: '<!-- skip -->' })
     skipLabel.appendText(' after it')
 
-    // Restore scroll
-    if (scrollEl) window.requestAnimationFrame(() => { scrollEl.scrollTop = scrollPos })
+    // Restore scroll position if this was a rebuild (not a fresh open)
+    if (restorePos != null && scrollEl) {
+      // Double-RAF: first frame lets the browser lay out the new DOM,
+      // second frame applies the scroll after layout is complete
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          scrollEl.scrollTop = restorePos
+        })
+      })
+    }
   }
 
   private rebuild(scrollEl: Element | null | undefined): void {
-    const pos = scrollEl?.scrollTop ?? 0
+    this._pendingScrollRestore = scrollEl?.scrollTop ?? 0
     this.display()
-    if (scrollEl) window.requestAnimationFrame(() => { scrollEl.scrollTop = pos })
   }
 
   private renderScopeCard(container: HTMLElement): void {
@@ -349,26 +360,26 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     cl.addEventListener('click', () => { void this.clearScopePaths(container) })
   }
 
-  private async removeScopePath(idx: number, container: HTMLElement): Promise<void> {
+  private async removeScopePath(idx: number, _container: HTMLElement): Promise<void> {
     this.plugin.settings.scopePaths.splice(idx, 1)
     await this.plugin.saveSettings()
-    this.rebuild(container.parentElement)
+    this.rebuild(this.containerEl.parentElement)
   }
 
-  private async addScopePath(path: string, container: HTMLElement): Promise<void> {
+  private async addScopePath(path: string, _container: HTMLElement): Promise<void> {
     if (!this.plugin.settings.scopePaths.includes(path)) {
       this.plugin.settings.scopePaths.push(path)
       await this.plugin.saveSettings()
-      this.rebuild(container.parentElement)
+      this.rebuild(this.containerEl.parentElement)
     } else {
       new Notice('Already in list.')
     }
   }
 
-  private async clearScopePaths(container: HTMLElement): Promise<void> {
+  private async clearScopePaths(_container: HTMLElement): Promise<void> {
     this.plugin.settings.scopePaths = []
     await this.plugin.saveSettings()
-    this.rebuild(container.parentElement)
+    this.rebuild(this.containerEl.parentElement)
   }
 
   private doBurnIn(): void {
