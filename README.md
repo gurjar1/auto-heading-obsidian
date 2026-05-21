@@ -25,11 +25,13 @@ If you want every note in your vault numbered automatically, enable "All notes i
 
 ## Installation
 
-### From Obsidian Community Plugins (when available)
+### From Obsidian Community Plugins
 
 1. Open Obsidian Settings > Community Plugins > Browse.
-2. Search for "Auto Heading".
+2. Search for "Auto Heading" by gurjar1.
 3. Click Install, then Enable.
+
+Direct Link: [Auto Heading](https://community.obsidian.md/plugins/auto-heading)
 
 ### Manual installation
 
