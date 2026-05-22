@@ -335,6 +335,11 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
       .addButton(b => b.setButtonText('Write Numbers to File').setCta().onClick(() => this.doBurnIn()))
     new Setting(containerEl).setName('Remove heading numbers').setDesc('Strip all numbers from headings and pause auto-numbering for this note.')
       .addButton(b => b.setButtonText('Remove & Stop').setWarning().onClick(() => this.doRemoveNumbers()))
+    new Setting(containerEl).setName('Insert / Remove Table of Contents').setDesc('Toggle a ```toc block at the top of the current note.')
+      .addButton(b => b.setButtonText('Toggle TOC').onClick(() => {
+        const toggleCmd = (this.app as any).commands?.executeCommandById('auto-heading-obsidian:toggle-toc-block')
+        if (!toggleCmd) new Notice('Please open a note first to toggle TOC.')
+      }))
 
     // ═══ ADVANCED ═══
     sectionHeader(containerEl, 'advanced', 'Advanced')
