@@ -93,8 +93,6 @@ export function burnInNumbers(
   const changes: EditorChange[] = []
 
   for (const heading of analysis.headings) {
-    if (heading.isSkipped) continue
-
     const lineText = editor.getLine(heading.line)
     if (!lineText) continue
 
@@ -103,6 +101,22 @@ export function burnInNumbers(
 
     const hashPrefix = hashMatch[1]
     const afterHash = lineText.substring(hashMatch[0].length)
+
+    if (heading.isSkipped) {
+      // Strip any leftover plugin numbers from skipped headings
+      if (hasPluginNumber(afterHash)) {
+        const cleanText = stripPluginNumber(afterHash) || ''
+        const newLine = hashPrefix + ' ' + cleanText
+        if (newLine !== lineText) {
+          changes.push({
+            text: newLine,
+            from: { line: heading.line, ch: 0 },
+            to: { line: heading.line, ch: lineText.length },
+          })
+        }
+      }
+      continue
+    }
 
     // Build the MARKED number prefix: \u2060{number} 
     const rawPrefix = heading.formattedNumber + settings.separator

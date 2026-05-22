@@ -452,6 +452,53 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       }
     },
   })
+
+  // ── Insert / Remove TOC block ─────────────────────────────
+  plugin.addCommand({
+    id: 'toggle-toc-block',
+    name: 'Insert / Remove TOC block',
+    checkCallback: (checking: boolean) => {
+      const view = plugin.app.workspace.getActiveViewOfType(MarkdownView)
+      if (!view?.file) return false
+      if (checking) return true
+
+      const editor = view.editor
+      const content = editor.getValue()
+
+      // Check if a TOC block already exists anywhere in the note
+      const tocRegex = /^```(?:toc|ah-toc)\s*\n[\s\S]*?^```\s*$/m
+      const match = content.match(tocRegex)
+
+      if (match && match.index != null) {
+        // Remove the existing TOC block (and any trailing blank line)
+        const startPos = editor.offsetToPos(match.index)
+        let endOffset = match.index + match[0].length
+        // Also consume one trailing newline if present
+        if (content[endOffset] === '\n') endOffset++
+        if (content[endOffset] === '\n') endOffset++
+        const endPos = editor.offsetToPos(endOffset)
+        editor.replaceRange('', startPos, endPos)
+        new Notice('Auto Heading: TOC block removed.')
+      } else {
+        // Insert a TOC block after front matter (or at the top)
+        const tocBlock = '```toc\ntitle: Table of Contents\nstyle: numbered\nlevel: 1-6\n```\n\n'
+
+        // Find end of front matter
+        let insertLine = 0
+        if (content.startsWith('---')) {
+          const fmEnd = content.indexOf('\n---', 3)
+          if (fmEnd >= 0) {
+            insertLine = editor.offsetToPos(fmEnd).line + 2 // line after closing ---
+          }
+        }
+
+        const insertPos = { line: insertLine, ch: 0 }
+        editor.replaceRange(tocBlock, insertPos)
+        new Notice('Auto Heading: TOC block inserted.')
+      }
+      return true
+    },
+  })
 }
 
 function escapeRegex(s: string): string {

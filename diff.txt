@@ -1,0 +1,1943 @@
+diff --git a/manifest.json b/manifest.json
+index 7cd2504..719335d 100644
+--- a/manifest.json
++++ b/manifest.json
+@@ -1,7 +1,7 @@
+ {
+ 	"id": "auto-heading",
+ 	"name": "Auto Heading",
+-	"version": "1.2.1",
++	"version": "1.3.0",
+ 	"minAppVersion": "1.5.0",
+ 	"description": "Automatic heading numbering with burn-in for TOC/PDF/Publish, visual-only decorations, visual heading indentation, per-note control, and smart detection of existing numbers.",
+ 	"author": "gurjar1",
+diff --git a/package-lock.json b/package-lock.json
+index fef014d..8f62b5f 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "auto-heading",
+-  "version": "1.0.1",
++  "version": "1.3.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "auto-heading",
+-      "version": "1.0.1",
++      "version": "1.3.0",
+       "license": "MIT",
+       "devDependencies": {
+         "@codemirror/language": "^6.0.0",
+diff --git a/package.json b/package.json
+index 701e5f8..5f822e8 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "auto-heading",
+-  "version": "1.2.1",
++  "version": "1.3.0",
+   "description": "Automatic heading numbering for Obsidian — burn-in, decorations, per-note control",
+   "repository": {
+     "type": "git",
+@@ -31,4 +31,4 @@
+     "obsidian": "latest",
+     "typescript": "^5.0.0"
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/src/commands/commandRegistry.ts b/src/commands/commandRegistry.ts
+index 2b2b8e0..79e50fb 100644
+--- a/src/commands/commandRegistry.ts
++++ b/src/commands/commandRegistry.ts
+@@ -230,8 +230,235 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
+       return true
+     },
+   })
++
++  // ── Navigate: Next Heading ────────────────────────────────
++  plugin.addCommand({
++    id: 'navigate-next-heading',
++    name: 'Navigate: next heading',
++    editorCheckCallback: (checking: boolean, editor: Editor) => {
++      const cursor = editor.getCursor()
++      const lineCount = editor.lineCount()
++      for (let i = cursor.line + 1; i < lineCount; i++) {
++        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
++          if (checking) return true
++          editor.setCursor({ line: i, ch: 0 })
++          return true
++        }
++      }
++      return false
++    },
++  })
++
++  // ── Navigate: Previous Heading ────────────────────────────
++  plugin.addCommand({
++    id: 'navigate-prev-heading',
++    name: 'Navigate: previous heading',
++    editorCheckCallback: (checking: boolean, editor: Editor) => {
++      const cursor = editor.getCursor()
++      for (let i = cursor.line - 1; i >= 0; i--) {
++        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
++          if (checking) return true
++          editor.setCursor({ line: i, ch: 0 })
++          return true
++        }
++      }
++      return false
++    },
++  })
++
++  // ── Navigate: Go to heading (fuzzy picker) ────────────────
++  plugin.addCommand({
++    id: 'navigate-go-to-heading',
++    name: 'Navigate: go to heading…',
++    checkCallback: (checking: boolean) => {
++      const view = plugin.app.workspace.getActiveViewOfType(MarkdownView)
++      if (!view?.file) return false
++      const md = plugin.app.metadataCache.getFileCache(view.file)
++      if (!md?.headings || md.headings.length === 0) return false
++      if (checking) return true
++
++      const s = plugin.getEffectiveSettings(view.file)
++      const getLine = (line: number) => view.editor.getLine(line)
++      const analysis = analyzeHeadings(md.headings, getLine, s)
++
++      const { FuzzySuggestModal } = require('obsidian') as typeof import('obsidian')
++      class HeadingPicker extends FuzzySuggestModal<{ line: number; text: string }> {
++        getItems() {
++          return analysis.headings.map(h => ({
++            line: h.line,
++            text: `${'  '.repeat(h.level - 1)}${h.isSkipped ? '' : h.formattedNumber + s.separator + ' '}${h.cleanTitle}`,
++          }))
++        }
++        getItemText(item: { text: string }) { return item.text }
++        onChooseItem(item: { line: number }) {
++          view.editor.setCursor({ line: item.line, ch: 0 })
++          view.editor.scrollIntoView({ from: { line: item.line, ch: 0 }, to: { line: item.line, ch: 0 } }, true)
++        }
++      }
++      new HeadingPicker(plugin.app).open()
++      return true
++    },
++  })
++
++  // ── Copy link to current section ──────────────────────────
++  plugin.addCommand({
++    id: 'copy-heading-link',
++    name: 'Copy link to current section',
++    editorCheckCallback: (checking: boolean, editor: Editor, view: MarkdownView) => {
++      const cursor = editor.getCursor()
++      // Find nearest heading at or above cursor
++      for (let i = cursor.line; i >= 0; i--) {
++        const line = editor.getLine(i)
++        const match = line.match(/^\s{0,3}#{1,6}\s+(.+)/)
++        if (match) {
++          if (checking) return true
++          let headingText = match[1]
++            .replace(/\s*<!--\s*(?:skip|no-number|ah-skip|skip-number)\s*-->\s*/g, '')
++            .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
++            .trim()
++          // Remove any auto-number prefix (contains U+2060 marker)
++          headingText = headingText.replace(/^[\u2060\d.A-Za-z()]+[\s.:\-—)]+\s*/, '')
++          const fileName = view.file?.basename || ''
++          const link = `[[${fileName}#${headingText}]]`
++          void navigator.clipboard.writeText(link)
++          new Notice(`Copied: ${link}`)
++          return true
++        }
++      }
++      return false
++    },
++  })
++
++  // ── Fold all headings ─────────────────────────────────────
++  plugin.addCommand({
++    id: 'fold-all-headings',
++    name: 'Fold all headings',
++    editorCheckCallback: (checking: boolean, editor: Editor) => {
++      const lineCount = editor.lineCount()
++      let hasHeading = false
++      for (let i = 0; i < lineCount; i++) {
++        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) { hasHeading = true; break }
++      }
++      if (!hasHeading) return false
++      if (checking) return true
++      for (let i = 0; i < lineCount; i++) {
++        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
++          editor.fold(i)
++        }
++      }
++      new Notice('Auto Heading: All headings folded')
++      return true
++    },
++  })
++
++  // ── Unfold all headings ───────────────────────────────────
++  plugin.addCommand({
++    id: 'unfold-all-headings',
++    name: 'Unfold all headings',
++    editorCheckCallback: (checking: boolean, editor: Editor) => {
++      const lineCount = editor.lineCount()
++      let hasHeading = false
++      for (let i = 0; i < lineCount; i++) {
++        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) { hasHeading = true; break }
++      }
++      if (!hasHeading) return false
++      if (checking) return true
++      for (let i = lineCount - 1; i >= 0; i--) {
++        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
++          editor.unfold(i)
++        }
++      }
++      new Notice('Auto Heading: All headings unfolded')
++      return true
++    },
++  })
++
++  // ── Promote heading (remove one #) ─────────────────────────
++  plugin.addCommand({
++    id: 'promote-heading',
++    name: 'Promote heading (e.g. H3 → H2)',
++    editorCheckCallback: (checking: boolean, editor: Editor) => {
++      const cursor = editor.getCursor()
++      const lineText = editor.getLine(cursor.line)
++      const match = lineText.match(/^(\s{0,3})(#{2,6})(\s+.*)$/)
++      if (!match) return false
++      if (checking) return true
++      const newLine = match[1] + match[2].slice(1) + match[3]
++      editor.setLine(cursor.line, newLine)
++      plugin.refreshDecorations()
++      return true
++    },
++  })
++
++  // ── Demote heading (add one #) ─────────────────────────────
++  plugin.addCommand({
++    id: 'demote-heading',
++    name: 'Demote heading (e.g. H2 → H3)',
++    editorCheckCallback: (checking: boolean, editor: Editor) => {
++      const cursor = editor.getCursor()
++      const lineText = editor.getLine(cursor.line)
++      const match = lineText.match(/^(\s{0,3})(#{1,5})(\s+.*)$/)
++      if (!match) return false
++      if (checking) return true
++      const newLine = match[1] + match[2] + '#' + match[3]
++      editor.setLine(cursor.line, newLine)
++      plugin.refreshDecorations()
++      return true
++    },
++  })
++
++  // ── Format heading: Title Case ─────────────────────────────
++  plugin.addCommand({
++    id: 'format-heading-title-case',
++    name: 'Format heading: Title Case',
++    editorCheckCallback: (checking: boolean, editor: Editor) => {
++      const cursor = editor.getCursor()
++      const lineText = editor.getLine(cursor.line)
++      const match = lineText.match(/^(\s{0,3}#{1,6}\s+)(.+)$/)
++      if (!match) return false
++      if (checking) return true
++      const titleCased = toTitleCase(match[2])
++      editor.setLine(cursor.line, match[1] + titleCased)
++      return true
++    },
++  })
++
++  // ── Format heading: Sentence case ──────────────────────────
++  plugin.addCommand({
++    id: 'format-heading-sentence-case',
++    name: 'Format heading: Sentence case',
++    editorCheckCallback: (checking: boolean, editor: Editor) => {
++      const cursor = editor.getCursor()
++      const lineText = editor.getLine(cursor.line)
++      const match = lineText.match(/^(\s{0,3}#{1,6}\s+)(.+)$/)
++      if (!match) return false
++      if (checking) return true
++      const sentenceCased = toSentenceCase(match[2])
++      editor.setLine(cursor.line, match[1] + sentenceCased)
++      return true
++    },
++  })
+ }
+ 
+ function escapeRegex(s: string): string {
+   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+ }
++
++const SMALL_WORDS = new Set([
++  'a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'yet', 'so',
++  'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'as', 'vs', 'via',
++])
++
++function toTitleCase(text: string): string {
++  return text.replace(/\S+/g, (word, index) => {
++    if (index === 0 || !SMALL_WORDS.has(word.toLowerCase())) {
++      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
++    }
++    return word.toLowerCase()
++  })
++}
++
++function toSentenceCase(text: string): string {
++  if (text.length === 0) return text
++  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
++}
+diff --git a/src/decorations/editorExtension.ts b/src/decorations/editorExtension.ts
+index 21aa640..618019b 100644
+--- a/src/decorations/editorExtension.ts
++++ b/src/decorations/editorExtension.ts
+@@ -346,3 +346,8 @@ export function getEditorExtensions() {
+     EditorView.atomicRanges.of(view => view.state.field(headingNumberField)),
+   ]
+ }
++
++/** Expose gutter settings state for use by headingGutter.ts */
++export function getGutterSettings(): { enabled: boolean; noteEnabled: boolean; settings: typeof currentSettings } {
++  return { enabled: currentSettings.enabled, noteEnabled: noteEnabled, settings: currentSettings }
++}
+diff --git a/src/decorations/headingGutter.ts b/src/decorations/headingGutter.ts
+new file mode 100644
+index 0000000..1f8bbb8
+--- /dev/null
++++ b/src/decorations/headingGutter.ts
+@@ -0,0 +1,134 @@
++/**
++ * Auto Heading — Interactive Heading Gutter
++ *
++ * Shows fold chevrons (▶/▼) and level badges (H2, H3) in the editor gutter.
++ * Click chevron to fold/unfold sections.
++ */
++
++import { gutter, GutterMarker, EditorView } from '@codemirror/view'
++import { foldEffect, unfoldEffect, foldedRanges } from '@codemirror/language'
++import type { Extension } from '@codemirror/state'
++import type { AutoHeadingSettings } from '../settings/settingsTypes'
++
++interface GutterSettingsProvider {
++  enabled: boolean
++  noteEnabled: boolean
++  settings: AutoHeadingSettings
++}
++
++class HeadingGutterMarker extends GutterMarker {
++  constructor(
++    readonly level: number,
++    readonly isFolded: boolean,
++    readonly showChevron: boolean,
++    readonly showBadge: boolean,
++    readonly wordCount: number,
++  ) { super() }
++
++  eq(other: HeadingGutterMarker): boolean {
++    return this.level === other.level && this.isFolded === other.isFolded &&
++      this.showChevron === other.showChevron && this.showBadge === other.showBadge &&
++      this.wordCount === other.wordCount
++  }
++
++  toDOM(view: EditorView): Node {
++    const container = activeDocument.createElement('div')
++    container.className = 'ah-gutter-marker'
++    const readTime = Math.max(1, Math.ceil(this.wordCount / 238))
++    container.title = `H${this.level} · ${this.wordCount}w · ~${readTime}min`
++
++    if (this.showChevron) {
++      const chevron = activeDocument.createElement('span')
++      chevron.className = 'ah-gutter-chevron'
++      chevron.textContent = this.isFolded ? '▶' : '▼'
++      chevron.addEventListener('mousedown', (e) => {
++        e.preventDefault()
++        e.stopPropagation()
++        const pos = view.posAtDOM(container)
++        const line = view.state.doc.lineAt(pos)
++        const endLine = findSectionEnd(view, line.number, this.level)
++        const foldFrom = line.to
++        const foldTo = view.state.doc.line(endLine).to
++
++        if (foldFrom >= foldTo) return
++
++        if (this.isFolded) {
++          const folded = foldedRanges(view.state)
++          let found = false
++          folded.between(line.from, line.to + 1, (from, to) => {
++            if (!found) {
++              view.dispatch({ effects: unfoldEffect.of({ from, to }) })
++              found = true
++            }
++          })
++        } else {
++          view.dispatch({ effects: foldEffect.of({ from: foldFrom, to: foldTo }) })
++        }
++      })
++      container.appendChild(chevron)
++    }
++
++    if (this.showBadge) {
++      const badge = activeDocument.createElement('span')
++      badge.className = `ah-gutter-badge ah-gutter-badge-${this.level}`
++      badge.textContent = `H${this.level}`
++      container.appendChild(badge)
++    }
++
++    return container
++  }
++}
++
++function findSectionEnd(view: EditorView, lineNum: number, level: number): number {
++  const doc = view.state.doc
++  for (let i = lineNum + 1; i <= doc.lines; i++) {
++    const m = doc.line(i).text.match(/^\s{0,3}(#{1,6})\s/)
++    if (m && m[1].length <= level) return i - 1
++  }
++  return doc.lines
++}
++
++function countWords(text: string): number {
++  const t = text.trim()
++  return t.length === 0 ? 0 : t.split(/\s+/).length
++}
++
++export function createHeadingGutter(getSettings: () => GutterSettingsProvider): Extension {
++  return gutter({
++    class: 'ah-heading-gutter',
++    lineMarker(view, line) {
++      const s = getSettings()
++      if (!s.enabled || !s.noteEnabled) return null
++      if (!s.settings.gutterEnabled) return null
++
++      const text = view.state.doc.lineAt(line.from).text
++      const m = text.match(/^\s{0,3}(#{1,6})\s/)
++      if (!m) return null
++
++      const level = m[1].length
++      const showBadge = s.settings.gutterShowBadge
++      const showChevron = s.settings.gutterShowChevron
++      const doc = view.state.doc
++      const lineObj = view.state.doc.lineAt(line.from)
++
++      let isFolded = false
++      foldedRanges(view.state).between(lineObj.from, lineObj.to + 1, () => { isFolded = true })
++
++      const lineNum = lineObj.number
++      let nextHeadingFrom = doc.length
++      for (let i = lineNum + 1; i <= doc.lines; i++) {
++        if (doc.line(i).text.match(/^\s{0,3}#{1,6}\s/)) {
++          nextHeadingFrom = doc.line(i).from - 1
++          break
++        }
++      }
++      const sectionText = nextHeadingFrom > lineObj.to ? doc.sliceString(lineObj.to + 1, nextHeadingFrom) : ''
++      const wc = s.settings.gutterShowWordCount ? countWords(sectionText) : 0
++
++      return new HeadingGutterMarker(level, isFolded, showChevron, showBadge, wc)
++    },
++    lineMarkerChange(update) {
++      return update.docChanged || update.selectionSet || update.viewportChanged
++    },
++  })
++}
+diff --git a/src/decorations/headingToolbar.ts b/src/decorations/headingToolbar.ts
+new file mode 100644
+index 0000000..58d3635
+--- /dev/null
++++ b/src/decorations/headingToolbar.ts
+@@ -0,0 +1,153 @@
++/**
++ * Auto Heading — Heading Inline Toolbar
++ *
++ * Floating action buttons (promote/demote/copy/format/skip) on heading lines.
++ */
++
++import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view'
++import { RangeSetBuilder } from '@codemirror/state'
++import type { Extension } from '@codemirror/state'
++import type AutoHeadingPlugin from '../main'
++
++const SMALL_WORDS = new Set([
++  'a','an','the','and','but','or','nor','for','yet','so',
++  'in','on','at','to','of','with','by','as','vs','via',
++])
++
++function toTitleCase(text: string): string {
++  const words = text.split(/(\s+)/)
++  return words.map((w, i) => {
++    if (/^\s+$/.test(w)) return w
++    if (i === 0 || i === words.length - 1 || !SMALL_WORDS.has(w.toLowerCase())) {
++      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
++    }
++    return w.toLowerCase()
++  }).join('')
++}
++
++class HeadingToolbarWidget extends WidgetType {
++  constructor(
++    readonly lineFrom: number,
++    readonly lineTo: number,
++    readonly lineText: string,
++    readonly getPlugin: () => AutoHeadingPlugin | null,
++  ) { super() }
++
++  eq(other: HeadingToolbarWidget): boolean {
++    return this.lineFrom === other.lineFrom && this.lineText === other.lineText
++  }
++
++  ignoreEvent(): boolean { return false }
++
++  toDOM(view: EditorView): HTMLElement {
++    const div = activeDocument.createElement('div')
++    div.className = 'ah-heading-toolbar'
++
++    const match = this.lineText.match(/^\s{0,3}(#{1,6})\s/)
++    if (!match) return div
++
++    const hashes = match[1]
++    const plugin = this.getPlugin()
++    const settings = plugin?.settings
++    const showPromote = !settings || (settings as any).toolbarShowPromote !== false
++    const showCopy = !settings || (settings as any).toolbarShowCopyLink !== false
++    const showFormat = !settings || (settings as any).toolbarShowFormat !== false
++    const showSkip = !settings || (settings as any).toolbarShowSkip !== false
++
++    const makeBtn = (text: string, title: string, cls: string, handler: () => void) => {
++      const btn = activeDocument.createElement('button')
++      btn.className = `ah-toolbar-btn ${cls}`
++      btn.textContent = text
++      btn.title = title
++      btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation() })
++      btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); handler() })
++      return btn
++    }
++
++    if (showPromote) {
++      if (hashes.length < 6) {
++        div.appendChild(makeBtn('−', 'Demote heading', '', () => {
++          const newText = this.lineText.replace(/^(\s{0,3})(#{1,6})/, '$1$2#')
++          view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: newText } })
++        }))
++      }
++      if (hashes.length > 1) {
++        div.appendChild(makeBtn('+', 'Promote heading', '', () => {
++          const newText = this.lineText.replace(/^(\s{0,3})#{1}(#{1,5})/, '$1$2')
++          view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: newText } })
++        }))
++      }
++    }
++
++    if (showCopy) {
++      const copyBtn = makeBtn('🔗', 'Copy link to section', '', () => {
++        let headingText = this.lineText.replace(/^\s{0,3}#{1,6}\s+/, '')
++          .replace(/\s*<!--\s*(?:skip|no-number|ah-skip|skip-number)\s*-->\s*/g, '')
++          .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
++          .replace(/^[\u2060\d.A-Za-z()]+[\s.:\-—)]+\s*/, '')
++          .trim()
++        const fileName = plugin?.app.workspace.getActiveFile()?.basename || ''
++        void navigator.clipboard.writeText(`[[${fileName}#${headingText}]]`)
++        copyBtn.textContent = '✓'
++        copyBtn.classList.add('ah-toolbar-btn-success')
++        setTimeout(() => { copyBtn.textContent = '🔗'; copyBtn.classList.remove('ah-toolbar-btn-success') }, 1500)
++      })
++      div.appendChild(copyBtn)
++    }
++
++    if (showFormat) {
++      div.appendChild(makeBtn('Aa', 'Format: Title Case', '', () => {
++        const m = this.lineText.match(/^(\s{0,3}#{1,6}\s+)(.+)$/)
++        if (m) {
++          const formatted = toTitleCase(m[2])
++          view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: m[1] + formatted } })
++        }
++      }))
++    }
++
++    if (showSkip) {
++      const hasSkip = /<!--\s*(?:skip|no-number|ah-skip)\s*-->/.test(this.lineText)
++      const skipBtn = makeBtn('⊘', hasSkip ? 'Remove skip' : 'Skip this heading',
++        hasSkip ? 'ah-toolbar-skip-active' : '', () => {
++          let newText: string
++          if (hasSkip) {
++            newText = this.lineText.replace(/\s*<!--\s*(?:skip|no-number|ah-skip)\s*-->\s*/g, '')
++          } else {
++            newText = this.lineText + ' <!-- skip -->'
++          }
++          view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: newText } })
++        })
++      div.appendChild(skipBtn)
++    }
++
++    return div
++  }
++}
++
++export function createHeadingToolbar(getPlugin: () => AutoHeadingPlugin | null): Extension {
++  return ViewPlugin.define(
++    (view) => ({
++      decorations: buildToolbarDecos(view, getPlugin),
++      update(update: ViewUpdate) {
++        if (update.selectionSet || update.docChanged) {
++          this.decorations = buildToolbarDecos(update.view, getPlugin)
++        }
++      },
++    }),
++    { decorations: (v) => v.decorations }
++  )
++}
++
++function buildToolbarDecos(view: EditorView, getPlugin: () => AutoHeadingPlugin | null): DecorationSet {
++  const plugin = getPlugin()
++  if (plugin && (plugin.settings as any).toolbarEnabled === false) return Decoration.none
++
++  const sel = view.state.selection.main
++  const line = view.state.doc.lineAt(sel.head)
++  if (!line.text.match(/^\s{0,3}#{1,6}\s/)) return Decoration.none
++
++  const builder = new RangeSetBuilder<Decoration>()
++  const widget = new HeadingToolbarWidget(line.from, line.to, line.text, getPlugin)
++  builder.add(line.to, line.to, Decoration.widget({ widget, side: 1 }))
++  return builder.finish()
++}
+diff --git a/src/main.ts b/src/main.ts
+index 7dd63ce..9238891 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -13,7 +13,7 @@ import type { EditorView } from '@codemirror/view'
+ import { AutoHeadingSettings, DEFAULT_SETTINGS, mergeSettings } from './settings/settingsTypes'
+ import { AutoHeadingSettingTab } from './settings/settingsTab'
+ import { parsePerNoteSettings } from './settings/perNoteSettings'
+-import { getEditorExtensions, updateDecorationSettings } from './decorations/editorExtension'
++import { getEditorExtensions, updateDecorationSettings, getGutterSettings } from './decorations/editorExtension'
+ import {
+   createHeadingPostProcessor,
+   updatePostProcessorSettings,
+@@ -23,6 +23,10 @@ import { registerCommands } from './commands/commandRegistry'
+ import { registerContextMenu } from './ui/contextMenu'
+ import { StatusBarManager } from './ui/statusBar'
+ import { burnInNumbers } from './burnIn/burnInEngine'
++import { registerTocProcessor } from './toc/tocProcessor'
++import { createHeadingGutter } from './decorations/headingGutter'
++import { createHeadingToolbar } from './decorations/headingToolbar'
++import { createSectionStrip } from './ui/sectionStrip'
+ 
+ export default class AutoHeadingPlugin extends Plugin {
+   settings!: AutoHeadingSettings
+@@ -41,17 +45,30 @@ export default class AutoHeadingPlugin extends Plugin {
+     console.info('Auto Heading: Loading plugin v' + this.manifest.version)
+     await this.loadSettings()
+ 
++    // Core editor extensions
+     this.registerEditorExtension(getEditorExtensions())
+     this.registerMarkdownPostProcessor(createHeadingPostProcessor())
++
++    // Feature extensions: Gutter, Toolbar, Section Strip
++    this.registerEditorExtension([
++      createHeadingGutter(() => getGutterSettings()),
++      createHeadingToolbar(() => this as AutoHeadingPlugin),
++      createSectionStrip(() => this as AutoHeadingPlugin),
++    ])
++
+     this.refreshDecorations()
+ 
+     registerCommands(this)
+     registerContextMenu(this)
++    registerTocProcessor(this)
+     this.addSettingTab(new AutoHeadingSettingTab(this.app, this))
+ 
+     this.statusBar = new StatusBarManager(this)
+     this.statusBar.init()
+ 
++    // Fold control buttons in view actions
++    this.registerFoldButtons()
++
+     // Active leaf change → refresh decorations
+     this.registerEvent(
+       this.app.workspace.on('active-leaf-change', () => this.onActiveFileChange()),
+@@ -296,4 +313,45 @@ export default class AutoHeadingPlugin extends Plugin {
+     })
+     return folders.sort()
+   }
++
++  /**
++   * Register fold/unfold buttons in the editor view header actions.
++   */
++  private registerFoldButtons(): void {
++    if (!this.settings.foldButtonsEnabled) return
++
++    // "Fold All" button
++    this.addCommand({
++      id: 'view-action-fold-all',
++      name: 'Fold all sections (view action)',
++      icon: 'chevrons-down-up',
++      checkCallback: (checking) => {
++        const view = this.app.workspace.getActiveViewOfType(MarkdownView)
++        if (!view) return false
++        if (checking) return true
++        const editor = view.editor
++        for (let i = 0; i < editor.lineCount(); i++) {
++          if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) editor.fold(i)
++        }
++        return true
++      },
++    })
++
++    // "Unfold All" button
++    this.addCommand({
++      id: 'view-action-unfold-all',
++      name: 'Unfold all sections (view action)',
++      icon: 'chevrons-up-down',
++      checkCallback: (checking) => {
++        const view = this.app.workspace.getActiveViewOfType(MarkdownView)
++        if (!view) return false
++        if (checking) return true
++        const editor = view.editor
++        for (let i = editor.lineCount() - 1; i >= 0; i--) {
++          if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) editor.unfold(i)
++        }
++        return true
++      },
++    })
++  }
+ }
+diff --git a/src/settings/quickConfigModal.ts b/src/settings/quickConfigModal.ts
+index 3cae7e5..89a1425 100644
+--- a/src/settings/quickConfigModal.ts
++++ b/src/settings/quickConfigModal.ts
+@@ -85,40 +85,35 @@ export class QuickConfigModal extends Modal {
+           this.plugin.refreshDecorations()
+         }))
+ 
+-    // Quick style preset
+-    new Setting(contentEl)
+-      .setName('Style preset')
+-      .addDropdown(dropdown => {
+-        dropdown.addOption('numeric', '1.1.1 (Numeric)')
+-        dropdown.addOption('letter-numeric', 'A.1.a (Mixed)')
+-        dropdown.addOption('roman-letter', 'I.A.1 (Formal)')
+-        dropdown.addOption('letter', 'A.A.A (All Letters)')
+-        dropdown.addOption('roman', 'I.I.I (All Roman)')
+-
+-        // Determine current preset
+-        const styles = this.plugin.settings.levelStyles
+-        let currentPreset = 'numeric'
+-        if (styles[0] === 'A' && styles[1] === '1' && styles[2] === 'a') currentPreset = 'letter-numeric'
+-        else if (styles[0] === 'I' && styles[1] === 'A' && styles[2] === '1') currentPreset = 'roman-letter'
+-        else if (styles.every(s => s === 'A')) currentPreset = 'letter'
+-        else if (styles.every(s => s === 'I')) currentPreset = 'roman'
+-
+-        dropdown.setValue(currentPreset)
+-        dropdown.onChange(async (value) => {
+-          const presets: Record<string, [NumberingStyle, NumberingStyle, NumberingStyle, NumberingStyle, NumberingStyle, NumberingStyle]> = {
+-            'numeric': ['1', '1', '1', '1', '1', '1'],
+-            'letter-numeric': ['A', '1', 'a', '1', 'a', '1'],
+-            'roman-letter': ['I', 'A', '1', 'a', '1', '1'],
+-            'letter': ['A', 'A', 'A', 'A', 'A', 'A'],
+-            'roman': ['I', 'I', 'I', 'I', 'I', 'I'],
+-          }
+-          if (presets[value]) {
+-            this.plugin.settings.levelStyles = [...presets[value]]
++    // Per-level style picker
++    const styleSection = contentEl.createEl('div')
++    styleSection.createEl('div', { text: 'Style per level', cls: 'setting-item-name' })
++
++    const previewEl = styleSection.createEl('div', {
++      cls: 'ah-style-grid-preview',
++      text: this.getStylePreview(),
++    })
++
++    const styleLabels: Record<string, string> = {
++      '1': '1 (Arabic)', 'A': 'A (Upper)', 'a': 'a (Lower)',
++      'I': 'I (Roman)', 'i': 'i (roman)',
++    }
++    const styleOptions = ['1', 'A', 'a', 'I', 'i']
++
++    for (let lvl = 0; lvl < 6; lvl++) {
++      new Setting(styleSection)
++        .setName(`H${lvl + 1}`)
++        .addDropdown(dd => {
++          for (const s of styleOptions) dd.addOption(s, styleLabels[s])
++          dd.setValue(this.plugin.settings.levelStyles[lvl])
++          dd.onChange(async (v) => {
++            this.plugin.settings.levelStyles[lvl] = v as NumberingStyle
+             await this.plugin.saveSettings()
+             this.plugin.refreshDecorations()
+-          }
++            previewEl.textContent = this.getStylePreview()
++          })
+         })
+-      })
++    }
+ 
+     // Separator
+     new Setting(contentEl)
+@@ -175,4 +170,11 @@ export class QuickConfigModal extends Modal {
+     contentEl.empty()
+     titleEl.empty()
+   }
++
++  private getStylePreview(): string {
++    const styles = this.plugin.settings.levelStyles
++    const sep = this.plugin.settings.levelSeparator || '.'
++    const samples: Record<string, string> = { '1': '1', 'A': 'A', 'a': 'a', 'I': 'I', 'i': 'i' }
++    return `Preview: ${styles.slice(0, 4).map(s => samples[s] || '1').join(sep)}`
++  }
+ }
+diff --git a/src/settings/settingsTab.ts b/src/settings/settingsTab.ts
+index e2ac5bb..416c00b 100644
+--- a/src/settings/settingsTab.ts
++++ b/src/settings/settingsTab.ts
+@@ -230,7 +230,56 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
+       }
+     }
+ 
+-    // ═══ QUICK ACTIONS ═══
++    // ═══ HEADING GUTTER ═══
++    sectionHeader(containerEl, 'appearance', 'Heading Gutter')
++    containerEl.createEl('p', { text: 'Interactive gutter with fold chevrons and level badges on heading lines.', cls: 'ah-settings-description' })
++    new Setting(containerEl).setName('Enable heading gutter').addToggle(t => t.setValue(this.plugin.settings.gutterEnabled)
++      .onChange(async v => { this.plugin.settings.gutterEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
++    if (this.plugin.settings.gutterEnabled) {
++      new Setting(containerEl).setName('Show level badges').setDesc('Display H2, H3 etc. in the gutter.')
++        .addToggle(t => t.setValue(this.plugin.settings.gutterShowBadge).onChange(async v => { this.plugin.settings.gutterShowBadge = v; await this.plugin.saveSettings() }))
++      new Setting(containerEl).setName('Show fold chevrons').setDesc('Clickable ▶/▼ to fold/unfold sections.')
++        .addToggle(t => t.setValue(this.plugin.settings.gutterShowChevron).onChange(async v => { this.plugin.settings.gutterShowChevron = v; await this.plugin.saveSettings() }))
++      new Setting(containerEl).setName('Show word count on hover').setDesc('Tooltip with section word count and reading time.')
++        .addToggle(t => t.setValue(this.plugin.settings.gutterShowWordCount).onChange(async v => { this.plugin.settings.gutterShowWordCount = v; await this.plugin.saveSettings() }))
++    }
++
++    // ═══ SECTION STRIP ═══
++    sectionHeader(containerEl, 'appearance', 'Section Navigation Strip')
++    containerEl.createEl('p', { text: 'Breadcrumb trail, progress dots, and word count at the top of the editor.', cls: 'ah-settings-description' })
++    new Setting(containerEl).setName('Enable section strip').addToggle(t => t.setValue(this.plugin.settings.stripEnabled)
++      .onChange(async v => { this.plugin.settings.stripEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
++    if (this.plugin.settings.stripEnabled) {
++      new Setting(containerEl).setName('Show breadcrumb').setDesc('Heading hierarchy trail (e.g. Methods › Analysis).')
++        .addToggle(t => t.setValue(this.plugin.settings.stripShowBreadcrumb).onChange(async v => { this.plugin.settings.stripShowBreadcrumb = v; await this.plugin.saveSettings() }))
++      new Setting(containerEl).setName('Show progress dots').setDesc('Dot indicators for top-level sections.')
++        .addToggle(t => t.setValue(this.plugin.settings.stripShowProgress).onChange(async v => { this.plugin.settings.stripShowProgress = v; await this.plugin.saveSettings() }))
++      new Setting(containerEl).setName('Show word count').setDesc('Section and total word count with reading time.')
++        .addToggle(t => t.setValue(this.plugin.settings.stripShowWordCount).onChange(async v => { this.plugin.settings.stripShowWordCount = v; await this.plugin.saveSettings() }))
++      new Setting(containerEl).setName('Show navigation arrows').setDesc('Previous/next heading buttons.')
++        .addToggle(t => t.setValue(this.plugin.settings.stripShowNavArrows).onChange(async v => { this.plugin.settings.stripShowNavArrows = v; await this.plugin.saveSettings() }))
++    }
++
++    // ═══ HEADING TOOLBAR ═══
++    sectionHeader(containerEl, 'actions', 'Heading Inline Toolbar')
++    containerEl.createEl('p', { text: 'Action buttons that appear when cursor is on a heading line.', cls: 'ah-settings-description' })
++    new Setting(containerEl).setName('Enable heading toolbar').addToggle(t => t.setValue(this.plugin.settings.toolbarEnabled)
++      .onChange(async v => { this.plugin.settings.toolbarEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
++    if (this.plugin.settings.toolbarEnabled) {
++      new Setting(containerEl).setName('Show promote/demote buttons').setDesc('Change heading level with a click.')
++        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowPromote).onChange(async v => { this.plugin.settings.toolbarShowPromote = v; await this.plugin.saveSettings() }))
++      new Setting(containerEl).setName('Show copy link button').setDesc('Copy [[Note#Section]] link to clipboard.')
++        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowCopyLink).onChange(async v => { this.plugin.settings.toolbarShowCopyLink = v; await this.plugin.saveSettings() }))
++      new Setting(containerEl).setName('Show format button').setDesc('Convert heading text to Title Case.')
++        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowFormat).onChange(async v => { this.plugin.settings.toolbarShowFormat = v; await this.plugin.saveSettings() }))
++      new Setting(containerEl).setName('Show skip toggle').setDesc('Add/remove skip marker on heading.')
++        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowSkip).onChange(async v => { this.plugin.settings.toolbarShowSkip = v; await this.plugin.saveSettings() }))
++    }
++
++    // ═══ FOLD CONTROLS ═══
++    sectionHeader(containerEl, 'actions', 'Fold Controls')
++    new Setting(containerEl).setName('Enable fold commands').setDesc('Fold/Unfold All commands in the command palette.')
++      .addToggle(t => t.setValue(this.plugin.settings.foldButtonsEnabled).onChange(async v => { this.plugin.settings.foldButtonsEnabled = v; await this.plugin.saveSettings() }))
+     sectionHeader(containerEl, 'actions', 'Quick Actions — This Note Only')
+     containerEl.createEl('p', { text: 'These buttons apply to the currently open note only. Use Ctrl+Z to undo.', cls: 'ah-settings-description' })
+     new Setting(containerEl).setName('Apply heading numbers').setDesc('Write computed numbers into headings right now. Appears in TOC and exports.')
+@@ -271,16 +320,22 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
+     containerEl.createEl('p', { text: 'Access these via Ctrl+P (Command Palette) or assign hotkeys above.', cls: 'ah-settings-description' })
+     const cmdBox = containerEl.createEl('div', { cls: 'ah-settings-cmd-box' })
+     const cmds: [string, string][] = [
+-      ['Toggle heading numbers', 'Turn numbering on/off for the current note. If turning on in burn-in mode, numbers are written immediately.'],
+-      ['Enable numbering for this note', 'Explicitly enable numbering for the current note, overriding scope rules.'],
+-      ['Disable numbering for this note', 'Explicitly disable numbering. Numbers stay in file but stop auto-updating.'],
+-      ['Burn in heading numbers', 'Write computed numbers into file text now. Same as the "Write Numbers to File" button.'],
+-      ['Remove burned-in heading numbers', 'Strip all numbers and disable auto-numbering. Same as "Remove & Stop" button.'],
+-      ['Force renumber all headings', 'Recalculate all numbers from scratch. Use after bulk edits or style changes.'],
+-      ['Toggle skip for heading at cursor', 'Add/remove <!-- skip --> marker for the heading at cursor position.'],
+-      ['Copy headings as numbered outline', 'Copy a numbered outline of all headings to clipboard.'],
+-      ['Save settings to front matter', 'Write current numbering settings into the note\'s front matter for per-note persistence.'],
+-      ['Quick configure numbering', 'Open a quick dialog to change numbering options for the current note.'],
++      ['Toggle heading numbers', 'Turn numbering on/off for the current note.'],
++      ['Enable/Disable numbering for this note', 'Override scope rules for the current note.'],
++      ['Burn in heading numbers', 'Write computed numbers into file text now.'],
++      ['Remove burned-in heading numbers', 'Strip all numbers and disable auto-numbering.'],
++      ['Force renumber all headings', 'Recalculate all numbers from scratch.'],
++      ['Toggle skip for heading at cursor', 'Add/remove <!-- skip --> marker.'],
++      ['Copy headings as numbered outline', 'Copy numbered outline to clipboard.'],
++      ['Navigate: next/previous heading', 'Jump to the next or previous heading.'],
++      ['Navigate: go to heading…', 'Fuzzy search picker to jump to any heading.'],
++      ['Copy link to current section', 'Copy [[Note#Section]] link to clipboard.'],
++      ['Fold/Unfold all headings', 'Fold or unfold all heading sections at once.'],
++      ['Promote/Demote heading', 'Change heading level (e.g. H3→H2 or H2→H3).'],
++      ['Format heading: Title Case', 'Convert heading text to Title Case.'],
++      ['Format heading: Sentence case', 'Convert heading text to Sentence case.'],
++      ['Quick configure numbering', 'Open a quick dialog to change numbering options.'],
++      ['Save settings to front matter', 'Write settings into the note\'s front matter.'],
+     ]
+     for (const [name, desc] of cmds) {
+       const row = cmdBox.createEl('div', { cls: 'ah-cmd-row' })
+diff --git a/src/settings/settingsTypes.ts b/src/settings/settingsTypes.ts
+index c6bc49e..9d7e8c8 100644
+--- a/src/settings/settingsTypes.ts
++++ b/src/settings/settingsTypes.ts
+@@ -62,6 +62,44 @@ export interface AutoHeadingSettings {
+   /** Show subtle vertical guide lines alongside indented headings */
+   headingIndentGuides: boolean
+ 
++  // ── Heading Gutter (Cluster A) ──────────────────────────────
++  /** Show interactive heading gutter with badges and fold chevrons */
++  gutterEnabled: boolean
++  /** Show H2/H3 level badge in gutter */
++  gutterShowBadge: boolean
++  /** Show fold/unfold chevron in gutter */
++  gutterShowChevron: boolean
++  /** Show word count in gutter hover tooltip */
++  gutterShowWordCount: boolean
++
++  // ── Section Navigation Strip (Cluster B) ─────────────────────
++  /** Show section navigation strip at top of editor */
++  stripEnabled: boolean
++  /** Show heading breadcrumb trail */
++  stripShowBreadcrumb: boolean
++  /** Show progress dots for top-level headings */
++  stripShowProgress: boolean
++  /** Show word count and reading time */
++  stripShowWordCount: boolean
++  /** Show previous/next navigation arrows */
++  stripShowNavArrows: boolean
++
++  // ── Heading Inline Toolbar (Cluster C) ───────────────────────
++  /** Show inline action toolbar on heading lines */
++  toolbarEnabled: boolean
++  /** Show promote/demote buttons in toolbar */
++  toolbarShowPromote: boolean
++  /** Show copy link button in toolbar */
++  toolbarShowCopyLink: boolean
++  /** Show format button in toolbar */
++  toolbarShowFormat: boolean
++  /** Show skip toggle button in toolbar */
++  toolbarShowSkip: boolean
++
++  // ── Fold Controls (Cluster F) ────────────────────────────────
++  /** Show fold control buttons in editor view actions */
++  foldButtonsEnabled: boolean
++
+   /** Legacy — kept for mergeSettings compatibility */
+   enabled: boolean
+ }
+@@ -94,6 +132,29 @@ export const DEFAULT_SETTINGS: Readonly<AutoHeadingSettings> = {
+   headingIndentSize: 20,
+   headingIndentGuides: false,
+ 
++  // Heading Gutter defaults
++  gutterEnabled: true,
++  gutterShowBadge: true,
++  gutterShowChevron: true,
++  gutterShowWordCount: true,
++
++  // Section Strip defaults
++  stripEnabled: true,
++  stripShowBreadcrumb: true,
++  stripShowProgress: true,
++  stripShowWordCount: true,
++  stripShowNavArrows: true,
++
++  // Heading Toolbar defaults
++  toolbarEnabled: true,
++  toolbarShowPromote: true,
++  toolbarShowCopyLink: true,
++  toolbarShowFormat: true,
++  toolbarShowSkip: true,
++
++  // Fold Controls defaults
++  foldButtonsEnabled: true,
++
+   enabled: false,
+ }
+ 
+diff --git a/src/toc/tocProcessor.ts b/src/toc/tocProcessor.ts
+new file mode 100644
+index 0000000..d1c9e2a
+--- /dev/null
++++ b/src/toc/tocProcessor.ts
+@@ -0,0 +1,107 @@
++/**
++ * Auto Heading — TOC Code Block Processor
++ *
++ * Renders a live table of contents from ```toc or ```ah-toc code blocks.
++ */
++
++import { TFile, MarkdownPostProcessorContext } from 'obsidian'
++import type AutoHeadingPlugin from '../main'
++import { analyzeHeadings } from '../core/headingAnalyzer'
++
++interface TocOptions {
++  minLevel: number
++  maxLevel: number
++  style: 'numbered' | 'bulleted' | 'plain'
++  title: string
++  indent: boolean
++}
++
++function parseOptions(source: string): TocOptions {
++  const opts: TocOptions = { minLevel: 1, maxLevel: 6, style: 'numbered', title: '', indent: true }
++  for (const line of source.split('\n')) {
++    const m = line.match(/^\s*(\w+)\s*:\s*(.+)\s*$/)
++    if (!m) continue
++    const [, key, val] = m
++    switch (key.toLowerCase()) {
++      case 'level': {
++        const lm = val.match(/(\d)-(\d)/)
++        if (lm) { opts.minLevel = +lm[1]; opts.maxLevel = +lm[2] }
++        break
++      }
++      case 'style': opts.style = val.trim() as TocOptions['style']; break
++      case 'title': opts.title = val.trim(); break
++      case 'indent': opts.indent = val.trim().toLowerCase() !== 'false'; break
++    }
++  }
++  return opts
++}
++
++export function registerTocProcessor(plugin: AutoHeadingPlugin): void {
++  const processor = async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
++    const opts = parseOptions(source)
++    const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath)
++    if (!(file instanceof TFile)) return
++
++    const metadata = plugin.app.metadataCache.getFileCache(file)
++    if (!metadata?.headings || metadata.headings.length === 0) {
++      el.createEl('p', { text: 'No headings found.', cls: 'ah-toc-empty' })
++      return
++    }
++
++    const content = await plugin.app.vault.cachedRead(file)
++    const lines = content.split('\n')
++    const getLine = (line: number) => lines[line] || ''
++    const settings = plugin.getEffectiveSettings(file)
++    const analysis = analyzeHeadings(metadata.headings, getLine, settings)
++
++    const container = el.createDiv({ cls: 'ah-toc' })
++    if (opts.title) container.createDiv({ cls: 'ah-toc-title', text: opts.title })
++
++    const filtered = analysis.headings.filter(h =>
++      h.level >= opts.minLevel && h.level <= opts.maxLevel
++    )
++    if (filtered.length === 0) {
++      container.createEl('p', { text: 'No headings in selected range.' })
++      return
++    }
++
++    const baseLevel = Math.min(...filtered.map(h => h.level))
++    const list = container.createEl(opts.style === 'bulleted' ? 'ul' : opts.style === 'numbered' ? 'ol' : 'ul', { cls: 'ah-toc-list' })
++
++    for (const h of filtered) {
++      let parent: HTMLElement = list
++      if (opts.indent) {
++        const depth = h.level - baseLevel
++        for (let d = 0; d < depth; d++) {
++          let sub = parent.querySelector(':scope > li:last-child > ul, :scope > li:last-child > ol') as HTMLElement | null
++          if (!sub) {
++            const lastLi = parent.querySelector(':scope > li:last-child') as HTMLElement
++            if (lastLi) {
++              sub = lastLi.createEl(opts.style === 'bulleted' ? 'ul' : 'ol', { cls: 'ah-toc-list' })
++            } else break
++          }
++          parent = sub
++        }
++      }
++
++      const li = parent.createEl('li', { cls: 'ah-toc-item' })
++      const a = li.createEl('a', { cls: 'ah-toc-link' })
++      a.setAttribute('href', `#${h.cleanTitle}`)
++      if (!h.isSkipped && h.formattedNumber) {
++        a.createSpan({ cls: 'ah-toc-number', text: h.formattedNumber + settings.separator + ' ' })
++      }
++      a.createSpan({ text: h.cleanTitle })
++      a.addEventListener('click', (e) => {
++        e.preventDefault()
++        const view = plugin.app.workspace.getActiveViewOfType(require('obsidian').MarkdownView)
++        if (view) {
++          view.editor.setCursor({ line: h.line, ch: 0 })
++          view.editor.scrollIntoView({ from: { line: h.line, ch: 0 }, to: { line: h.line, ch: 0 } }, true)
++        }
++      })
++    }
++  }
++
++  plugin.registerMarkdownCodeBlockProcessor('toc', processor)
++  plugin.registerMarkdownCodeBlockProcessor('ah-toc', processor)
++}
+diff --git a/src/ui/contextMenu.ts b/src/ui/contextMenu.ts
+index 1a59f15..e7ff128 100644
+--- a/src/ui/contextMenu.ts
++++ b/src/ui/contextMenu.ts
+@@ -66,6 +66,53 @@ export function registerContextMenu(plugin: AutoHeadingPlugin): void {
+             .onClick(() => plugin.triggerBurnIn())
+         })
+       }
++
++      // Promote heading (H3→H2)
++      const hashMatch2 = lineText.match(/^\s{0,3}(#{2,6})\s/)
++      if (hashMatch2) {
++        menu.addItem((item) => {
++          item.setTitle(`Promote heading (H${hashMatch2[1].length} → H${hashMatch2[1].length - 1})`)
++            .setIcon('arrow-up')
++            .onClick(() => {
++              const newLine = lineText.replace(/^(\s{0,3})#{1}(#{1,5}\s)/, '$1$2')
++              editor.setLine(cursor.line, newLine)
++              plugin.refreshDecorations()
++            })
++        })
++      }
++
++      // Demote heading (H2→H3)
++      const hashMatch3 = lineText.match(/^\s{0,3}(#{1,5})\s/)
++      if (hashMatch3) {
++        menu.addItem((item) => {
++          item.setTitle(`Demote heading (H${hashMatch3[1].length} → H${hashMatch3[1].length + 1})`)
++            .setIcon('arrow-down')
++            .onClick(() => {
++              const newLine = lineText.replace(/^(\s{0,3})(#{1,5}\s)/, '$1#$2')
++              editor.setLine(cursor.line, newLine)
++              plugin.refreshDecorations()
++            })
++        })
++      }
++
++      // Copy link to this section
++      menu.addItem((item) => {
++        item.setTitle('Copy link to this section')
++          .setIcon('link')
++          .onClick(() => {
++            const hm = lineText.match(/^\s{0,3}#{1,6}\s+(.+)/)
++            if (hm) {
++              let text = hm[1]
++                .replace(/\s*<!--\s*(?:skip|no-number|ah-skip|skip-number)\s*-->\s*/g, '')
++                .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
++                .replace(/^[\u2060\d.A-Za-z()]+[\s.:\-—)]+\s*/, '')
++                .trim()
++              const fileName = view.file?.basename || ''
++              void navigator.clipboard.writeText(`[[${fileName}#${text}]]`)
++              new (require('obsidian').Notice)(`Copied: [[${fileName}#${text}]]`)
++            }
++          })
++      })
+     }),
+   )
+ }
+diff --git a/src/ui/sectionStrip.ts b/src/ui/sectionStrip.ts
+new file mode 100644
+index 0000000..79ca132
+--- /dev/null
++++ b/src/ui/sectionStrip.ts
+@@ -0,0 +1,206 @@
++/**
++ * Auto Heading — Section Navigation Strip
++ *
++ * A slim bar at the top of the editor showing breadcrumb, progress dots,
++ * navigation arrows, and word count / reading time.
++ */
++
++import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view'
++import type { Extension } from '@codemirror/state'
++import type AutoHeadingPlugin from '../main'
++
++interface SimpleHeading {
++  level: number
++  lineNum: number
++  from: number
++  text: string
++}
++
++function extractHeadings(view: EditorView): SimpleHeading[] {
++  const doc = view.state.doc
++  const result: SimpleHeading[] = []
++  for (let i = 1; i <= doc.lines; i++) {
++    const line = doc.line(i)
++    const m = line.text.match(/^\s{0,3}(#{1,6})\s+(.+)/)
++    if (m) result.push({ level: m[1].length, lineNum: i, from: line.from, text: m[2] })
++  }
++  return result
++}
++
++function countWords(text: string): number {
++  const t = text.trim()
++  return t.length === 0 ? 0 : t.split(/\s+/).length
++}
++
++export function createSectionStrip(getPlugin: () => AutoHeadingPlugin | null): Extension {
++  return ViewPlugin.define(
++    (view) => {
++      const strip = new SectionStripView(view, getPlugin)
++      return strip
++    },
++    {}
++  )
++}
++
++class SectionStripView {
++  private el: HTMLElement
++  private breadcrumbEl: HTMLElement
++  private progressEl: HTMLElement
++  private navEl: HTMLElement
++  private statsEl: HTMLElement
++  private prevBtn: HTMLButtonElement
++  private nextBtn: HTMLButtonElement
++
++  constructor(private view: EditorView, private getPlugin: () => AutoHeadingPlugin | null) {
++    this.el = activeDocument.createElement('div')
++    this.el.className = 'ah-section-strip'
++
++    this.breadcrumbEl = this.el.createDiv({ cls: 'ah-strip-breadcrumb' })
++    this.progressEl = this.el.createDiv({ cls: 'ah-strip-progress' })
++    this.navEl = this.el.createDiv({ cls: 'ah-strip-nav' })
++    this.statsEl = this.el.createDiv({ cls: 'ah-strip-stats' })
++
++    this.prevBtn = activeDocument.createElement('button')
++    this.prevBtn.className = 'ah-strip-btn'
++    this.prevBtn.textContent = '◀'
++    this.prevBtn.title = 'Previous heading'
++    this.prevBtn.addEventListener('click', () => this.navigatePrev())
++    this.navEl.appendChild(this.prevBtn)
++
++    this.nextBtn = activeDocument.createElement('button')
++    this.nextBtn.className = 'ah-strip-btn'
++    this.nextBtn.textContent = '▶'
++    this.nextBtn.title = 'Next heading'
++    this.nextBtn.addEventListener('click', () => this.navigateNext())
++    this.navEl.appendChild(this.nextBtn)
++
++    view.dom.insertBefore(this.el, view.dom.firstChild)
++    this.refresh()
++  }
++
++  update(update: ViewUpdate): void {
++    if (update.selectionSet || update.docChanged || update.geometryChanged) {
++      this.refresh()
++    }
++  }
++
++  destroy(): void {
++    this.el.remove()
++  }
++
++  private refresh(): void {
++    const plugin = this.getPlugin()
++    if (!plugin || (plugin.settings as any).stripEnabled === false) {
++      this.el.classList.add('ah-strip-hidden')
++      return
++    }
++
++    const headings = extractHeadings(this.view)
++    if (headings.length === 0) {
++      this.el.classList.add('ah-strip-hidden')
++      return
++    }
++    this.el.classList.remove('ah-strip-hidden')
++
++    const cursorPos = this.view.state.selection.main.head
++    const cursorLine = this.view.state.doc.lineAt(cursorPos).number
++
++    let currentIdx = -1
++    for (let i = headings.length - 1; i >= 0; i--) {
++      if (headings[i].lineNum <= cursorLine) { currentIdx = i; break }
++    }
++
++    const showBreadcrumb = (plugin.settings as any).stripShowBreadcrumb !== false
++    const showProgress = (plugin.settings as any).stripShowProgress !== false
++    const showWordCount = (plugin.settings as any).stripShowWordCount !== false
++    const showNav = (plugin.settings as any).stripShowNavArrows !== false
++
++    // Breadcrumb
++    this.breadcrumbEl.empty()
++    this.breadcrumbEl.style.display = showBreadcrumb ? '' : 'none'
++    if (showBreadcrumb && currentIdx >= 0) {
++      const chain = this.buildBreadcrumbChain(headings, currentIdx)
++      chain.forEach((h, i) => {
++        if (i > 0) this.breadcrumbEl.createSpan({ cls: 'ah-strip-sep', text: '›' })
++        const crumb = this.breadcrumbEl.createSpan({
++          cls: `ah-strip-crumb${i === chain.length - 1 ? ' ah-strip-crumb-active' : ''}`,
++          text: h.text.substring(0, 30) + (h.text.length > 30 ? '…' : ''),
++        })
++        crumb.addEventListener('click', () => this.jumpTo(h.from))
++      })
++    }
++
++    // Progress dots
++    this.progressEl.empty()
++    this.progressEl.style.display = showProgress ? '' : 'none'
++    if (showProgress) {
++      const minLevel = Math.min(...headings.map(h => h.level))
++      const topLevel = headings.filter(h => h.level === minLevel)
++      let activeTLIdx = -1
++      for (let i = topLevel.length - 1; i >= 0; i--) {
++        if (topLevel[i].lineNum <= cursorLine) { activeTLIdx = i; break }
++      }
++      topLevel.forEach((h, i) => {
++        const dot = this.progressEl.createSpan({
++          cls: `ah-strip-dot${i === activeTLIdx ? ' ah-strip-dot-active' : ''}`,
++        })
++        dot.addEventListener('click', () => this.jumpTo(h.from))
++      })
++    }
++
++    // Nav arrows
++    this.navEl.style.display = showNav ? '' : 'none'
++    this.prevBtn.disabled = currentIdx <= 0
++    this.nextBtn.disabled = currentIdx >= headings.length - 1
++
++    // Stats
++    this.statsEl.style.display = showWordCount ? '' : 'none'
++    if (showWordCount) {
++      const doc = this.view.state.doc
++      const totalWords = countWords(doc.sliceString(0, doc.length))
++      const totalTime = Math.max(1, Math.ceil(totalWords / 238))
++      let sectionWords = 0
++      if (currentIdx >= 0) {
++        const start = doc.line(headings[currentIdx].lineNum).to + 1
++        const end = currentIdx + 1 < headings.length
++          ? doc.line(headings[currentIdx + 1].lineNum).from - 1
++          : doc.length
++        if (end > start) sectionWords = countWords(doc.sliceString(start, end))
++      }
++      this.statsEl.textContent = `${sectionWords}w / ${totalWords}w · ~${totalTime}min`
++    }
++  }
++
++  private buildBreadcrumbChain(headings: SimpleHeading[], idx: number): SimpleHeading[] {
++    const chain: SimpleHeading[] = [headings[idx]]
++    let targetLevel = headings[idx].level
++    for (let i = idx - 1; i >= 0 && targetLevel > 1; i--) {
++      if (headings[i].level < targetLevel) {
++        chain.unshift(headings[i])
++        targetLevel = headings[i].level
++      }
++    }
++    return chain
++  }
++
++  private navigatePrev(): void {
++    const headings = extractHeadings(this.view)
++    const cursorLine = this.view.state.doc.lineAt(this.view.state.selection.main.head).number
++    for (let i = headings.length - 1; i >= 0; i--) {
++      if (headings[i].lineNum < cursorLine) { this.jumpTo(headings[i].from); return }
++    }
++  }
++
++  private navigateNext(): void {
++    const headings = extractHeadings(this.view)
++    const cursorLine = this.view.state.doc.lineAt(this.view.state.selection.main.head).number
++    for (const h of headings) {
++      if (h.lineNum > cursorLine) { this.jumpTo(h.from); return }
++    }
++  }
++
++  private jumpTo(pos: number): void {
++    this.view.dispatch({ selection: { anchor: pos }, scrollIntoView: true })
++    this.view.focus()
++  }
++}
+diff --git a/src/ui/statusBar.ts b/src/ui/statusBar.ts
+index ee6636d..abbddf2 100644
+--- a/src/ui/statusBar.ts
++++ b/src/ui/statusBar.ts
+@@ -1,75 +1,133 @@
+ /**
+- * Auto Heading — Status Bar
++ * Auto Heading — Rich Status Bar
+  *
+- * Shows heading numbering status in the Obsidian status bar.
++ * Shows heading count, word count, reading time. Click to open document overview popover.
+  */
+ 
+ import { MarkdownView } from 'obsidian'
+ import type AutoHeadingPlugin from '../main'
++import { analyzeHeadings } from '../core/headingAnalyzer'
+ 
+-/**
+- * Create and manage the status bar item.
+- */
+ export class StatusBarManager {
+   private statusBarEl: HTMLElement | null = null
+   private plugin: AutoHeadingPlugin
++  private popoverEl: HTMLElement | null = null
+ 
+   constructor(plugin: AutoHeadingPlugin) {
+     this.plugin = plugin
+   }
+ 
+-  /**
+-   * Initialize the status bar element.
+-   */
+   init(): void {
+     this.statusBarEl = this.plugin.addStatusBarItem()
+     this.statusBarEl.addClass('ah-status-bar')
++    this.statusBarEl.addEventListener('click', () => this.togglePopover())
+     this.update()
++    // Close popover on outside click
++    activeDocument.addEventListener('click', (e) => {
++      if (this.popoverEl && !this.popoverEl.contains(e.target as Node) &&
++          !this.statusBarEl?.contains(e.target as Node)) {
++        this.closePopover()
++      }
++    })
+   }
+ 
+-  /**
+-   * Update the status bar text.
+-   */
+   update(): void {
+     if (!this.statusBarEl) return
+-
+     if (!this.plugin.settings.showStatusBar) {
+       this.statusBarEl.addClass('ah-status-bar-hidden')
+       return
+     }
+-
+     this.statusBarEl.removeClass('ah-status-bar-hidden')
+ 
+     const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView)
++    if (!view?.file) { this.statusBarEl.setText(''); return }
+ 
+-    if (!view || !view.file) {
+-      this.statusBarEl.setText('')
+-      return
+-    }
+-
+-    const isEnabled = this.plugin.getPerNoteEnabled(view.file.path) &&
+-                      this.plugin.settings.enabled
++    const isEnabled = this.plugin.getPerNoteEnabled(view.file.path) && this.plugin.settings.enabled
+     const metadata = this.plugin.app.metadataCache.getFileCache(view.file)
+     const headingCount = metadata?.headings?.length || 0
+ 
+-    if (headingCount === 0) {
+-      this.statusBarEl.setText('')
+-      return
+-    }
++    if (headingCount === 0) { this.statusBarEl.setText(''); return }
++
++    // Word count from editor
++    const content = view.editor.getValue()
++    const wordCount = content.trim().split(/\s+/).length
++    const readTime = Math.max(1, Math.ceil(wordCount / 238))
+ 
+     const icon = isEnabled ? '🔢' : '—'
+-    const status = isEnabled ? 'ON' : 'OFF'
+-    this.statusBarEl.setText(`${icon} ${headingCount}h`)
+-    this.statusBarEl.setAttr('title', `Auto Heading: ${status} | ${headingCount} heading(s)`)
++    this.statusBarEl.setText(`${icon} ${headingCount}h · ${wordCount.toLocaleString()}w · ~${readTime}min`)
++    this.statusBarEl.setAttr('title', `Click for document overview`)
+   }
+ 
+-  /**
+-   * Clean up the status bar element.
+-   */
+-  destroy(): void {
+-    if (this.statusBarEl) {
+-      this.statusBarEl.remove()
+-      this.statusBarEl = null
++  private togglePopover(): void {
++    if (this.popoverEl) { this.closePopover(); return }
++    this.openPopover()
++  }
++
++  private closePopover(): void {
++    if (this.popoverEl) { this.popoverEl.remove(); this.popoverEl = null }
++  }
++
++  private openPopover(): void {
++    this.closePopover()
++    const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView)
++    if (!view?.file) return
++
++    const metadata = this.plugin.app.metadataCache.getFileCache(view.file)
++    if (!metadata?.headings || metadata.headings.length === 0) return
++
++    const settings = this.plugin.getEffectiveSettings(view.file)
++    const getLine = (line: number) => view.editor.getLine(line)
++    const analysis = analyzeHeadings(metadata.headings, getLine, settings)
++
++    const content = view.editor.getValue()
++    const totalWords = content.trim().split(/\s+/).length
++    const totalTime = Math.max(1, Math.ceil(totalWords / 238))
++
++    const popover = activeDocument.createElement('div')
++    popover.className = 'ah-status-popover'
++    this.popoverEl = popover
++
++    // Header
++    const header = popover.createDiv({ cls: 'ah-status-popover-header' })
++    header.textContent = '📄 Document Overview'
++
++    // Summary
++    const summary = popover.createDiv({ cls: 'ah-status-popover-summary' })
++    summary.textContent = `${analysis.headings.length} headings · ${totalWords.toLocaleString()} words · ~${totalTime}min`
++
++    // Section rows
++    const lines = content.split('\n')
++    for (let idx = 0; idx < analysis.headings.length; idx++) {
++      const h = analysis.headings[idx]
++      const startLine = h.line + 1
++      const endLine = idx + 1 < analysis.headings.length
++        ? analysis.headings[idx + 1].line
++        : lines.length
++      const sectionText = lines.slice(startLine, endLine).join('\n')
++      const sectionWords = sectionText.trim().length === 0 ? 0 : sectionText.trim().split(/\s+/).length
++      const sectionTime = Math.max(1, Math.ceil(sectionWords / 238))
++
++      const row = popover.createDiv({ cls: 'ah-status-popover-row' })
++      const indent = '  '.repeat(Math.max(0, h.level - 1))
++      row.createSpan({ cls: 'ah-status-popover-num', text: h.isSkipped ? '' : h.formattedNumber })
++      row.createSpan({ cls: 'ah-status-popover-title', text: indent + h.cleanTitle })
++      row.createSpan({ cls: 'ah-status-popover-words', text: `${sectionWords}w ${sectionTime}min` })
++      row.addEventListener('click', () => {
++        view.editor.setCursor({ line: h.line, ch: 0 })
++        view.editor.scrollIntoView({ from: { line: h.line, ch: 0 }, to: { line: h.line, ch: 0 } }, true)
++        this.closePopover()
++      })
+     }
++
++    // Position above status bar
++    const rect = this.statusBarEl!.getBoundingClientRect()
++    popover.style.bottom = `${activeDocument.documentElement.clientHeight - rect.top + 4}px`
++    popover.style.right = `${activeDocument.documentElement.clientWidth - rect.right}px`
++    activeDocument.body.appendChild(popover)
++  }
++
++  destroy(): void {
++    this.closePopover()
++    if (this.statusBarEl) { this.statusBarEl.remove(); this.statusBarEl = null }
+   }
+ }
+diff --git a/styles.css b/styles.css
+index e6f071c..849651a 100644
+--- a/styles.css
++++ b/styles.css
+@@ -420,4 +420,408 @@
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis;
++}
++
++/* ─── Cluster A: Interactive Heading Gutter ───────────────── */
++
++.ah-heading-gutter {
++  width: 38px;
++  min-width: 38px;
++}
++
++.ah-gutter-marker {
++  display: flex;
++  align-items: center;
++  gap: 1px;
++  cursor: default;
++  height: 100%;
++  padding: 0 2px;
++}
++
++.ah-gutter-chevron {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  width: 16px;
++  height: 16px;
++  font-size: 10px;
++  cursor: pointer;
++  border-radius: 3px;
++  color: var(--text-faint);
++  transition: color 0.15s ease, background-color 0.15s ease;
++  flex-shrink: 0;
++  user-select: none;
++}
++
++.ah-gutter-chevron:hover {
++  color: var(--text-normal);
++  background-color: var(--background-modifier-hover);
++}
++
++.ah-gutter-badge {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  font-size: 9px;
++  font-weight: 700;
++  line-height: 1;
++  padding: 1px 3px;
++  border-radius: 3px;
++  user-select: none;
++  letter-spacing: -0.02em;
++  flex-shrink: 0;
++}
++
++.ah-gutter-badge-1 { color: var(--text-accent); background: rgba(var(--color-accent-rgb, 124,77,255), 0.12); }
++.ah-gutter-badge-2 { color: var(--color-blue, #2196f3); background: rgba(33,150,243,0.10); }
++.ah-gutter-badge-3 { color: var(--color-green, #4caf50); background: rgba(76,175,80,0.10); }
++.ah-gutter-badge-4 { color: var(--color-orange, #ff9800); background: rgba(255,152,0,0.10); }
++.ah-gutter-badge-5 { color: var(--text-muted); background: var(--background-modifier-hover); }
++.ah-gutter-badge-6 { color: var(--text-faint); background: var(--background-modifier-hover); }
++
++/* ─── Cluster B: Section Navigation Strip ─────────────────── */
++
++.ah-section-strip {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  padding: 4px 10px;
++  font-size: 11px;
++  color: var(--text-muted);
++  background: var(--background-secondary);
++  border-bottom: 1px solid var(--background-modifier-border);
++  user-select: none;
++  min-height: 26px;
++  flex-wrap: nowrap;
++  overflow: hidden;
++}
++
++.ah-section-strip.ah-strip-hidden {
++  display: none;
++}
++
++.ah-strip-breadcrumb {
++  display: flex;
++  align-items: center;
++  gap: 4px;
++  flex: 1;
++  min-width: 0;
++  overflow: hidden;
++  white-space: nowrap;
++}
++
++.ah-strip-crumb {
++  cursor: pointer;
++  color: var(--text-muted);
++  border-radius: 3px;
++  padding: 1px 4px;
++  transition: color 0.12s, background 0.12s;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++  max-width: 160px;
++}
++
++.ah-strip-crumb:hover {
++  color: var(--text-normal);
++  background: var(--background-modifier-hover);
++}
++
++.ah-strip-crumb-active {
++  color: var(--text-normal);
++  font-weight: 600;
++}
++
++.ah-strip-sep {
++  color: var(--text-faint);
++  font-size: 9px;
++  flex-shrink: 0;
++}
++
++.ah-strip-progress {
++  display: flex;
++  align-items: center;
++  gap: 4px;
++  flex-shrink: 0;
++}
++
++.ah-strip-dot {
++  display: inline-block;
++  width: 6px;
++  height: 6px;
++  border-radius: 50%;
++  background: var(--text-faint);
++  cursor: pointer;
++  transition: background 0.15s, transform 0.15s;
++  opacity: 0.5;
++}
++
++.ah-strip-dot:hover {
++  transform: scale(1.4);
++  opacity: 0.8;
++}
++
++.ah-strip-dot-active {
++  background: var(--text-accent);
++  opacity: 1;
++  transform: scale(1.2);
++}
++
++.ah-strip-nav {
++  display: flex;
++  gap: 2px;
++  flex-shrink: 0;
++}
++
++.ah-strip-btn {
++  background: none;
++  border: none;
++  color: var(--text-muted);
++  cursor: pointer;
++  padding: 2px 4px;
++  border-radius: 3px;
++  font-size: 10px;
++  transition: color 0.12s, background 0.12s;
++  line-height: 1;
++}
++
++.ah-strip-btn:hover:not(:disabled) {
++  color: var(--text-normal);
++  background: var(--background-modifier-hover);
++}
++
++.ah-strip-btn:disabled {
++  opacity: 0.3;
++  cursor: default;
++}
++
++.ah-strip-stats {
++  font-size: 10px;
++  color: var(--text-faint);
++  white-space: nowrap;
++  flex-shrink: 0;
++}
++
++/* ─── Cluster C: Heading Inline Toolbar ───────────────────── */
++
++.ah-heading-toolbar {
++  display: inline-flex;
++  align-items: center;
++  gap: 1px;
++  margin-left: 8px;
++  padding: 1px 3px;
++  border-radius: 4px;
++  background: var(--background-secondary);
++  border: 1px solid var(--background-modifier-border);
++  opacity: 0;
++  transition: opacity 0.2s ease;
++  vertical-align: middle;
++  pointer-events: auto;
++}
++
++/* Show toolbar when its parent line has focus */
++.cm-line:has(.ah-heading-toolbar) .ah-heading-toolbar,
++.ah-heading-toolbar:hover {
++  opacity: 1;
++}
++
++/* Fallback: always show with reduced opacity (for browsers without :has) */
++.ah-heading-toolbar {
++  opacity: 0.5;
++}
++
++@supports selector(:has(*)) {
++  .ah-heading-toolbar {
++    opacity: 0;
++  }
++}
++
++.ah-toolbar-btn {
++  background: none;
++  border: none;
++  color: var(--text-muted);
++  cursor: pointer;
++  padding: 2px 5px;
++  border-radius: 3px;
++  font-size: 11px;
++  line-height: 1;
++  transition: color 0.12s, background 0.12s;
++  font-family: var(--font-ui-small);
++  user-select: none;
++}
++
++.ah-toolbar-btn:hover {
++  color: var(--text-normal);
++  background: var(--background-modifier-hover);
++}
++
++.ah-toolbar-btn-active {
++  color: var(--text-accent);
++}
++
++.ah-toolbar-btn-success {
++  color: var(--color-green, #4caf50);
++}
++
++.ah-toolbar-skip-active {
++  color: var(--text-error);
++  text-decoration: line-through;
++}
++
++/* ─── Cluster D: Auto-TOC ─────────────────────────────────── */
++
++.ah-toc {
++  padding: 12px 16px;
++  margin: 8px 0;
++  border: 1px solid var(--background-modifier-border);
++  border-radius: 8px;
++  background: var(--background-secondary);
++}
++
++.ah-toc-title {
++  font-weight: 600;
++  font-size: var(--font-ui-medium);
++  color: var(--text-normal);
++  margin-bottom: 8px;
++  padding-bottom: 6px;
++  border-bottom: 1px solid var(--background-modifier-border);
++}
++
++.ah-toc-list {
++  list-style: none;
++  padding: 0;
++  margin: 0;
++}
++
++.ah-toc-list .ah-toc-list {
++  margin-left: 18px;
++}
++
++.ah-toc-item {
++  padding: 2px 0;
++}
++
++.ah-toc-link {
++  color: var(--text-muted);
++  text-decoration: none;
++  font-size: var(--font-ui-small);
++  cursor: pointer;
++  border-radius: 3px;
++  padding: 2px 4px;
++  transition: color 0.12s, background 0.12s;
++  display: inline-block;
++}
++
++.ah-toc-link:hover {
++  color: var(--text-accent);
++  background: var(--background-modifier-hover);
++}
++
++.ah-toc-number {
++  color: var(--text-faint);
++  margin-right: 4px;
++  font-size: 0.9em;
++}
++
++/* ─── Cluster E: Rich Status Bar Popover ──────────────────── */
++
++.ah-status-popover {
++  position: fixed;
++  z-index: var(--layer-popover, 100);
++  background: var(--background-primary);
++  border: 1px solid var(--background-modifier-border);
++  border-radius: 8px;
++  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
++  padding: 8px 0;
++  min-width: 300px;
++  max-width: 420px;
++  max-height: 400px;
++  overflow-y: auto;
++  font-size: var(--font-ui-smaller);
++}
++
++.ah-status-popover-header {
++  padding: 6px 14px 8px;
++  font-weight: 600;
++  color: var(--text-normal);
++  font-size: var(--font-ui-small);
++  border-bottom: 1px solid var(--background-modifier-border);
++  display: flex;
++  align-items: center;
++  gap: 6px;
++}
++
++.ah-status-popover-summary {
++  padding: 6px 14px;
++  color: var(--text-muted);
++  border-bottom: 1px solid var(--background-modifier-border);
++}
++
++.ah-status-popover-row {
++  display: flex;
++  align-items: center;
++  gap: 6px;
++  padding: 4px 14px;
++  cursor: pointer;
++  transition: background 0.12s;
++  color: var(--text-muted);
++}
++
++.ah-status-popover-row:hover {
++  background: var(--background-modifier-hover);
++  color: var(--text-normal);
++}
++
++.ah-status-popover-num {
++  color: var(--text-faint);
++  min-width: 40px;
++  text-align: right;
++  font-size: 0.9em;
++  flex-shrink: 0;
++}
++
++.ah-status-popover-title {
++  flex: 1;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.ah-status-popover-words {
++  color: var(--text-faint);
++  font-size: 0.85em;
++  flex-shrink: 0;
++  text-align: right;
++  min-width: 50px;
++}
++
++/* ─── Cluster F: Fold Controls ────────────────────────────── */
++/* Uses Obsidian's built-in view-action button styling */
++
++/* ─── Per-Level Style Picker (in QuickConfigModal) ────────── */
++
++.ah-style-grid {
++  display: grid;
++  grid-template-columns: 40px 1fr 1fr;
++  gap: 4px 8px;
++  align-items: center;
++  padding: 8px 0;
++}
++
++.ah-style-grid-header {
++  font-size: var(--font-ui-smaller);
++  font-weight: 600;
++  color: var(--text-muted);
++}
++
++.ah-style-grid-level {
++  font-size: var(--font-ui-smaller);
++  font-weight: 600;
++  color: var(--text-normal);
++}
++
++.ah-style-grid-preview {
++  font-size: var(--font-ui-smaller);
++  color: var(--text-faint);
++  font-family: var(--font-monospace);
+ }
+\ No newline at end of file
+diff --git a/versions.json b/versions.json
+index 1c9cd45..e5bc35f 100644
+--- a/versions.json
++++ b/versions.json
+@@ -4,5 +4,6 @@
+ 	"1.1.0": "1.5.0",
+ 	"1.0.1": "1.5.0",
+ 	"1.0.0": "1.5.0",
+-	"1.2.1": "1.5.0"
++	"1.2.1": "1.5.0",
++	"1.3.0": "1.5.0"
+ }
+\ No newline at end of file

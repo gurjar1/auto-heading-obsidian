@@ -2,10 +2,10 @@
  * Auto Heading — TOC Code Block Processor
  *
  * Renders a live table of contents from ```toc or ```ah-toc code blocks.
- * Auto-refreshes when headings change.
+ * Auto-refreshes when headings change (debounced).
  */
 
-import { TFile, MarkdownPostProcessorContext, MarkdownView } from 'obsidian'
+import { TFile, MarkdownPostProcessorContext, MarkdownView, debounce } from 'obsidian'
 import type AutoHeadingPlugin from '../main'
 import { analyzeHeadings } from '../core/headingAnalyzer'
 
@@ -49,6 +49,7 @@ async function renderToc(plugin: AutoHeadingPlugin, source: string, el: HTMLElem
     return
   }
 
+  // Read the full file content to detect <!-- skip --> comments on heading lines
   const content = await plugin.app.vault.cachedRead(file)
   const lines = content.split('\n')
   const getLine = (line: number) => lines[line] || ''
@@ -85,13 +86,14 @@ async function renderToc(plugin: AutoHeadingPlugin, source: string, el: HTMLElem
       }
     }
 
-    const li = parent.createEl('li', { cls: 'ah-toc-item' })
+    const li = parent.createEl('li', { cls: `ah-toc-item ah-toc-level-${h.level}` })
+    if (h.isSkipped) li.addClass('ah-toc-skipped')
     const a = li.createEl('a', { cls: 'ah-toc-link' })
     a.setAttribute('href', `#${h.cleanTitle}`)
     if (!h.isSkipped && h.formattedNumber) {
       a.createSpan({ cls: 'ah-toc-number', text: h.formattedNumber + settings.separator + ' ' })
     }
-    a.createSpan({ text: h.cleanTitle })
+    a.createSpan({ cls: 'ah-toc-text', text: h.cleanTitle })
     a.addEventListener('click', (e) => {
       e.preventDefault()
       const view = plugin.app.workspace.getActiveViewOfType(MarkdownView)
@@ -122,25 +124,32 @@ export function registerTocProcessor(plugin: AutoHeadingPlugin): void {
         observer.disconnect()
       }
     })
-    observer.observe(el.parentElement || activeDocument.body, { childList: true, subtree: true })
+    // Observe the parent for childList changes to detect removal
+    if (el.parentElement) {
+      observer.observe(el.parentElement, { childList: true, subtree: true })
+    }
   }
 
   plugin.registerMarkdownCodeBlockProcessor('toc', processor)
   plugin.registerMarkdownCodeBlockProcessor('ah-toc', processor)
 
+  // Debounced refresh to avoid hammering on rapid edits (300ms)
+  const debouncedRefresh = debounce((filePath: string) => {
+    for (const entry of activeTocEntries) {
+      if (entry.ctx.sourcePath === filePath && entry.el.isConnected) {
+        entry.el.empty()
+        renderToc(plugin, entry.source, entry.el, entry.ctx)
+      }
+    }
+  }, 300, true)
+
   // Live refresh: re-render all visible TOC blocks when metadata changes
   plugin.registerEvent(
     plugin.app.metadataCache.on('changed', (file: TFile) => {
-      const activeFile = plugin.app.workspace.getActiveFile()
-      if (!activeFile || file.path !== activeFile.path) return
-
-      // Re-render all active TOC elements for this file
-      for (const entry of activeTocEntries) {
-        if (entry.ctx.sourcePath === file.path && entry.el.isConnected) {
-          entry.el.empty()
-          renderToc(plugin, entry.source, entry.el, entry.ctx)
-        }
-      }
+      // Only refresh if there are active TOC entries for this file
+      const hasEntries = activeTocEntries.some(e => e.ctx.sourcePath === file.path && e.el.isConnected)
+      if (!hasEntries) return
+      debouncedRefresh(file.path)
     })
   )
 }
