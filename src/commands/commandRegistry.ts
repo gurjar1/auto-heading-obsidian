@@ -334,13 +334,13 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
     id: 'fold-all-headings',
     name: 'Fold all headings',
     editorCheckCallback: (checking: boolean, editor: Editor) => {
+      if (checking) return true
       const lineCount = editor.lineCount()
       let hasHeading = false
       for (let i = 0; i < lineCount; i++) {
         if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) { hasHeading = true; break }
       }
       if (!hasHeading) return false
-      if (checking) return true
       for (let i = 0; i < lineCount; i++) {
         if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
           editor.fold(i)
@@ -356,13 +356,13 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
     id: 'unfold-all-headings',
     name: 'Unfold all headings',
     editorCheckCallback: (checking: boolean, editor: Editor) => {
+      if (checking) return true
       const lineCount = editor.lineCount()
       let hasHeading = false
       for (let i = 0; i < lineCount; i++) {
         if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) { hasHeading = true; break }
       }
       if (!hasHeading) return false
-      if (checking) return true
       for (let i = lineCount - 1; i >= 0; i--) {
         if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
           editor.unfold(i)

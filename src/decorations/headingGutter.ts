@@ -6,7 +6,7 @@
  */
 
 import { gutter, GutterMarker, EditorView } from '@codemirror/view'
-import { foldEffect, unfoldEffect, foldedRanges } from '@codemirror/language'
+import { foldEffect, unfoldEffect, foldedRanges, syntaxTree } from '@codemirror/language'
 import type { Extension } from '@codemirror/state'
 import type { AutoHeadingSettings } from '../settings/settingsTypes'
 
@@ -83,7 +83,10 @@ function findSectionEnd(view: EditorView, lineNum: number, level: number): numbe
   const doc = view.state.doc
   for (let i = lineNum + 1; i <= doc.lines; i++) {
     const m = doc.line(i).text.match(/^\s{0,3}(#{1,6})\s/)
-    if (m && m[1].length <= level) return i - 1
+    if (m && m[1].length <= level) {
+      const node = syntaxTree(view.state).resolveInner(doc.line(i).from, 1)
+      if (node.name.includes("header") || node.name.includes("Heading")) return i - 1
+    }
   }
   return doc.lines
 }
@@ -105,6 +108,9 @@ export function createHeadingGutter(getSettings: () => GutterSettingsProvider): 
       const m = text.match(/^\s{0,3}(#{1,6})\s/)
       if (!m) return null
 
+      const node = syntaxTree(view.state).resolveInner(line.from, 1)
+      if (!node.name.includes("header") && !node.name.includes("Heading")) return null
+
       const level = m[1].length
       const showBadge = s.settings.gutterShowBadge
       const showChevron = s.settings.gutterShowChevron
@@ -118,8 +124,11 @@ export function createHeadingGutter(getSettings: () => GutterSettingsProvider): 
       let nextHeadingFrom = doc.length
       for (let i = lineNum + 1; i <= doc.lines; i++) {
         if (doc.line(i).text.match(/^\s{0,3}#{1,6}\s/)) {
-          nextHeadingFrom = doc.line(i).from - 1
-          break
+          const nNode = syntaxTree(view.state).resolveInner(doc.line(i).from, 1)
+          if (nNode.name.includes("header") || nNode.name.includes("Heading")) {
+            nextHeadingFrom = doc.line(i).from - 1
+            break
+          }
         }
       }
       const sectionText = nextHeadingFrom > lineObj.to ? doc.sliceString(lineObj.to + 1, nextHeadingFrom) : ''

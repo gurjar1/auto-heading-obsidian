@@ -6,6 +6,7 @@
 
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view'
 import { RangeSetBuilder } from '@codemirror/state'
+import { syntaxTree } from '@codemirror/language'
 import type { Extension } from '@codemirror/state'
 import type AutoHeadingPlugin from '../main'
 
@@ -145,6 +146,9 @@ function buildToolbarDecos(view: EditorView, getPlugin: () => AutoHeadingPlugin 
   const sel = view.state.selection.main
   const line = view.state.doc.lineAt(sel.head)
   if (!line.text.match(/^\s{0,3}#{1,6}\s/)) return Decoration.none
+
+  const node = syntaxTree(view.state).resolveInner(line.from, 1)
+  if (!node.name.includes("header") && !node.name.includes("Heading")) return Decoration.none
 
   const builder = new RangeSetBuilder<Decoration>()
   const widget = new HeadingToolbarWidget(line.from, line.to, line.text, getPlugin)

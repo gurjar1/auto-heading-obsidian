@@ -7,6 +7,7 @@
 
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
+import { syntaxTree } from '@codemirror/language'
 import type AutoHeadingPlugin from '../main'
 
 interface SimpleHeading {
@@ -19,11 +20,17 @@ interface SimpleHeading {
 function extractHeadings(view: EditorView): SimpleHeading[] {
   const doc = view.state.doc
   const result: SimpleHeading[] = []
-  for (let i = 1; i <= doc.lines; i++) {
-    const line = doc.line(i)
-    const m = line.text.match(/^\s{0,3}(#{1,6})\s+(.+)/)
-    if (m) result.push({ level: m[1].length, lineNum: i, from: line.from, text: m[2] })
-  }
+  syntaxTree(view.state).iterate({
+    enter: (node) => {
+      if (node.name.includes('header') || node.name.includes('Heading')) {
+        const line = doc.lineAt(node.from)
+        const m = line.text.match(/^\s{0,3}(#{1,6})\s+(.+)/)
+        if (m && !result.some(h => h.lineNum === line.number)) {
+          result.push({ level: m[1].length, lineNum: line.number, from: line.from, text: m[2] })
+        }
+      }
+    }
+  })
   return result
 }
 

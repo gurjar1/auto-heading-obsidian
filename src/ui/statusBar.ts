@@ -13,6 +13,13 @@ export class StatusBarManager {
   private plugin: AutoHeadingPlugin
   private popoverEl: HTMLElement | null = null
 
+  private onOutsideClick = (e: MouseEvent) => {
+    if (this.popoverEl && !this.popoverEl.contains(e.target as Node) &&
+        !this.statusBarEl?.contains(e.target as Node)) {
+      this.closePopover()
+    }
+  }
+
   constructor(plugin: AutoHeadingPlugin) {
     this.plugin = plugin
   }
@@ -23,12 +30,7 @@ export class StatusBarManager {
     this.statusBarEl.addEventListener('click', () => this.togglePopover())
     this.update()
     // Close popover on outside click
-    activeDocument.addEventListener('click', (e) => {
-      if (this.popoverEl && !this.popoverEl.contains(e.target as Node) &&
-          !this.statusBarEl?.contains(e.target as Node)) {
-        this.closePopover()
-      }
-    })
+    activeDocument.addEventListener('click', this.onOutsideClick)
   }
 
   update(): void {
@@ -127,6 +129,7 @@ export class StatusBarManager {
   }
 
   destroy(): void {
+    activeDocument.removeEventListener('click', this.onOutsideClick)
     this.closePopover()
     if (this.statusBarEl) { this.statusBarEl.remove(); this.statusBarEl = null }
   }
