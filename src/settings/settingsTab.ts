@@ -56,6 +56,12 @@ function sectionHeader(c: HTMLElement, key: string, title: string): void {
   h.createEl('span', { text: title })
 }
 
+/** Helper: wrap a Setting (and optional extra elements) in a container
+ *  that can be greyed-out via CSS when a parent toggle is off. */
+function setDisabled(setting: Setting, disabled: boolean): void {
+  setting.settingEl.toggleClass('ah-settings-disabled', disabled)
+}
+
 export class AutoHeadingSettingTab extends PluginSettingTab {
   plugin: AutoHeadingPlugin
   /** Scroll position to restore after a rebuild; null means fresh open */
@@ -68,13 +74,6 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     const scrollEl = containerEl.parentElement
     const restorePos = this._pendingScrollRestore
     this._pendingScrollRestore = null
-    
-    // Prevent scroll jump by locking height temporarily
-    const currentHeight = containerEl.getBoundingClientRect().height
-    if (currentHeight > 0) {
-      containerEl.style.minHeight = `${currentHeight}px`
-    }
-    
     containerEl.empty()
 
     // Use Setting heading API instead of createEl('h2')
@@ -134,20 +133,33 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
 
     // ═══ NUMBERING OPTIONS ═══
     sectionHeader(containerEl, 'numbering', 'Numbering Options')
-    new Setting(containerEl).setName('Skip H1 headings').setDesc('Do not number # headings (use when H1 is the note title).')
+
+    const skipH1Setting = new Setting(containerEl).setName('Skip H1 headings').setDesc('Do not number # headings (use when H1 is the note title).')
       .addToggle(t => t.setValue(this.plugin.settings.skipH1).onChange(async v => {
         this.plugin.settings.skipH1 = v
         if (v && this.plugin.settings.firstLevel < 2) this.plugin.settings.firstLevel = 2
-        await this.plugin.saveSettings(); this.rebuild(scrollEl)
+        await this.plugin.saveSettings()
+        // Update the first-level dropdown in-place
+        const firstLevelDropdown = containerEl.querySelector('[data-setting-id="first-level"] select') as HTMLSelectElement | null
+        if (firstLevelDropdown) {
+          const min = v ? 2 : 1
+          const current = Math.max(this.plugin.settings.firstLevel, min)
+          firstLevelDropdown.innerHTML = ''
+          for (let i = min; i <= 6; i++) {
+            const opt = firstLevelDropdown.createEl('option', { text: `H${i} (${'#'.repeat(i)})`, attr: { value: String(i) } })
+            if (i === current) opt.selected = true
+          }
+        }
       }))
 
-    new Setting(containerEl).setName('First heading level').setDesc('Start numbering from this level.')
+    const firstLevelSetting = new Setting(containerEl).setName('First heading level').setDesc('Start numbering from this level.')
       .addDropdown(dd => {
         const min = this.plugin.settings.skipH1 ? 2 : 1
         for (let i = min; i <= 6; i++) dd.addOption(String(i), `H${i} (${'#'.repeat(i)})`)
         dd.setValue(String(Math.max(this.plugin.settings.firstLevel, min)))
         dd.onChange(async v => { this.plugin.settings.firstLevel = parseInt(v); await this.plugin.saveSettings() })
       })
+    firstLevelSetting.settingEl.setAttribute('data-setting-id', 'first-level')
 
     new Setting(containerEl).setName('Maximum heading level').setDesc('Stop numbering at this level.')
       .addDropdown(dd => {
@@ -239,51 +251,64 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
 
     // ═══ HEADING GUTTER ═══
     sectionHeader(containerEl, 'appearance', 'Heading Gutter')
-    containerEl.createEl('p', { text: 'Interactive gutter with level badges on heading lines.', cls: 'ah-settings-description' })
+    containerEl.createEl('p', { text: 'Shows heading level badges (H1, H2, etc.) in the editor gutter.', cls: 'ah-settings-description' })
     new Setting(containerEl).setName('Enable heading gutter').addToggle(t => t.setValue(this.plugin.settings.gutterEnabled)
-      .onChange(async v => { this.plugin.settings.gutterEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
-    if (this.plugin.settings.gutterEnabled) {
-      new Setting(containerEl).setName('Show level badges').setDesc('Display H2, H3 etc. in the gutter. Click the badge to fold/unfold.')
-        .addToggle(t => t.setValue(this.plugin.settings.gutterShowBadge).onChange(async v => { this.plugin.settings.gutterShowBadge = v; await this.plugin.saveSettings() }))
-      new Setting(containerEl).setName('Show word count on hover').setDesc('Tooltip with section word count and reading time.')
-        .addToggle(t => t.setValue(this.plugin.settings.gutterShowWordCount).onChange(async v => { this.plugin.settings.gutterShowWordCount = v; await this.plugin.saveSettings() }))
-    }
+      .onChange(async v => { this.plugin.settings.gutterEnabled = v; await this.plugin.saveSettings() }))
 
-    // ═══ SECTION STRIP ═══
-    sectionHeader(containerEl, 'appearance', 'Section Navigation Strip')
-    containerEl.createEl('p', { text: 'Breadcrumb trail at the top of the editor.', cls: 'ah-settings-description' })
-    new Setting(containerEl).setName('Enable section strip').addToggle(t => t.setValue(this.plugin.settings.stripEnabled)
-      .onChange(async v => { this.plugin.settings.stripEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
-    if (this.plugin.settings.stripEnabled) {
-      new Setting(containerEl).setName('Show breadcrumb').setDesc('Heading hierarchy trail (e.g. Methods › Analysis).')
-        .addToggle(t => t.setValue(this.plugin.settings.stripShowBreadcrumb).onChange(async v => { this.plugin.settings.stripShowBreadcrumb = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
-      if (this.plugin.settings.stripShowBreadcrumb) {
-        new Setting(containerEl).setName('Breadcrumb update mode').setDesc('Track the cursor position or the scroll position.')
-          .addDropdown(d => d
-            .addOption('cursor', 'Text Cursor')
-            .addOption('scroll', 'Scroll Position')
-            .setValue(this.plugin.settings.stripUpdateMode)
-            .onChange(async (v: 'cursor' | 'scroll') => { this.plugin.settings.stripUpdateMode = v; await this.plugin.saveSettings() }))
-      }
-      new Setting(containerEl).setName('Show navigation arrows').setDesc('Previous/next heading buttons.')
-        .addToggle(t => t.setValue(this.plugin.settings.stripShowNavArrows).onChange(async v => { this.plugin.settings.stripShowNavArrows = v; await this.plugin.saveSettings() }))
-    }
+    // Sub-items always rendered, greyed out when gutter is off
+    const gutBadge = new Setting(containerEl).setName('Show level badges').setDesc('Display H1, H2, H3 etc. in the gutter.')
+      .addToggle(t => t.setValue(this.plugin.settings.gutterShowBadge).onChange(async v => { this.plugin.settings.gutterShowBadge = v; await this.plugin.saveSettings() }))
+    setDisabled(gutBadge, !this.plugin.settings.gutterEnabled)
+
+    const gutWc = new Setting(containerEl).setName('Show word count on hover').setDesc('Tooltip with section word count and reading time.')
+      .addToggle(t => t.setValue(this.plugin.settings.gutterShowWordCount).onChange(async v => { this.plugin.settings.gutterShowWordCount = v; await this.plugin.saveSettings() }))
+    setDisabled(gutWc, !this.plugin.settings.gutterEnabled)
+
+    // ═══ BREADCRUMB ═══
+    sectionHeader(containerEl, 'appearance', 'Breadcrumb')
+    containerEl.createEl('p', { text: 'A navigation bar at the top of the editor showing the current heading hierarchy.', cls: 'ah-settings-description' })
+    new Setting(containerEl).setName('Enable breadcrumb bar').addToggle(t => t.setValue(this.plugin.settings.stripEnabled)
+      .onChange(async v => { this.plugin.settings.stripEnabled = v; await this.plugin.saveSettings() }))
+
+    // Sub-items always rendered, greyed out when strip is off
+    const stripBc = new Setting(containerEl).setName('Show heading trail').setDesc('Heading hierarchy trail (e.g. Methods / Analysis).')
+      .addToggle(t => t.setValue(this.plugin.settings.stripShowBreadcrumb).onChange(async v => { this.plugin.settings.stripShowBreadcrumb = v; await this.plugin.saveSettings() }))
+    setDisabled(stripBc, !this.plugin.settings.stripEnabled)
+
+    const stripMode = new Setting(containerEl).setName('Breadcrumb update mode').setDesc('Track the cursor position or the scroll position.')
+      .addDropdown(d => d
+        .addOption('cursor', 'Text Cursor')
+        .addOption('scroll', 'Scroll Position')
+        .setValue(this.plugin.settings.stripUpdateMode)
+        .onChange(async (v: 'cursor' | 'scroll') => { this.plugin.settings.stripUpdateMode = v; await this.plugin.saveSettings() }))
+    setDisabled(stripMode, !this.plugin.settings.stripEnabled || !this.plugin.settings.stripShowBreadcrumb)
+
+    const stripNav = new Setting(containerEl).setName('Show navigation arrows').setDesc('Previous/next heading buttons.')
+      .addToggle(t => t.setValue(this.plugin.settings.stripShowNavArrows).onChange(async v => { this.plugin.settings.stripShowNavArrows = v; await this.plugin.saveSettings() }))
+    setDisabled(stripNav, !this.plugin.settings.stripEnabled)
 
     // ═══ HEADING TOOLBAR ═══
     sectionHeader(containerEl, 'actions', 'Heading Inline Toolbar')
     containerEl.createEl('p', { text: 'Action buttons that appear when cursor is on a heading line.', cls: 'ah-settings-description' })
     new Setting(containerEl).setName('Enable heading toolbar').addToggle(t => t.setValue(this.plugin.settings.toolbarEnabled)
-      .onChange(async v => { this.plugin.settings.toolbarEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
-    if (this.plugin.settings.toolbarEnabled) {
-      new Setting(containerEl).setName('Show promote/demote buttons').setDesc('Change heading level with a click.')
-        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowPromote).onChange(async v => { this.plugin.settings.toolbarShowPromote = v; await this.plugin.saveSettings() }))
-      new Setting(containerEl).setName('Show copy link button').setDesc('Copy [[Note#Section]] link to clipboard.')
-        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowCopyLink).onChange(async v => { this.plugin.settings.toolbarShowCopyLink = v; await this.plugin.saveSettings() }))
-      new Setting(containerEl).setName('Show format button').setDesc('Convert heading text to Title Case.')
-        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowFormat).onChange(async v => { this.plugin.settings.toolbarShowFormat = v; await this.plugin.saveSettings() }))
-      new Setting(containerEl).setName('Show skip toggle').setDesc('Add/remove skip marker on heading.')
-        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowSkip).onChange(async v => { this.plugin.settings.toolbarShowSkip = v; await this.plugin.saveSettings() }))
-    }
+      .onChange(async v => { this.plugin.settings.toolbarEnabled = v; await this.plugin.saveSettings() }))
+
+    // Sub-items always rendered, greyed out when toolbar is off
+    const tbPromote = new Setting(containerEl).setName('Show promote/demote buttons').setDesc('Change heading level with a click.')
+      .addToggle(t => t.setValue(this.plugin.settings.toolbarShowPromote).onChange(async v => { this.plugin.settings.toolbarShowPromote = v; await this.plugin.saveSettings() }))
+    setDisabled(tbPromote, !this.plugin.settings.toolbarEnabled)
+
+    const tbCopy = new Setting(containerEl).setName('Show copy link button').setDesc('Copy [[Note#Section]] link to clipboard.')
+      .addToggle(t => t.setValue(this.plugin.settings.toolbarShowCopyLink).onChange(async v => { this.plugin.settings.toolbarShowCopyLink = v; await this.plugin.saveSettings() }))
+    setDisabled(tbCopy, !this.plugin.settings.toolbarEnabled)
+
+    const tbFormat = new Setting(containerEl).setName('Show format button').setDesc('Convert heading text to Title Case.')
+      .addToggle(t => t.setValue(this.plugin.settings.toolbarShowFormat).onChange(async v => { this.plugin.settings.toolbarShowFormat = v; await this.plugin.saveSettings() }))
+    setDisabled(tbFormat, !this.plugin.settings.toolbarEnabled)
+
+    const tbSkip = new Setting(containerEl).setName('Show skip toggle').setDesc('Add/remove skip marker on heading.')
+      .addToggle(t => t.setValue(this.plugin.settings.toolbarShowSkip).onChange(async v => { this.plugin.settings.toolbarShowSkip = v; await this.plugin.saveSettings() }))
+    setDisabled(tbSkip, !this.plugin.settings.toolbarEnabled)
 
     // ═══ FOLD CONTROLS ═══
     sectionHeader(containerEl, 'actions', 'Enable Fold All Commands')
@@ -302,7 +327,8 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
       .addToggle(t => t.setValue(this.plugin.settings.detectManualNumbers).onChange(async v => { this.plugin.settings.detectManualNumbers = v; await this.plugin.saveSettings() }))
     new Setting(containerEl).setName('Skip marker').setDesc('HTML comment keyword to skip a heading. Right-click heading → "Skip numbering".')
       .addText(t => t.setPlaceholder('skip').setValue(this.plugin.settings.skipMarker).onChange(async v => { this.plugin.settings.skipMarker = v; await this.plugin.saveSettings() }))
-    new Setting(containerEl).setName('Show in status bar').addToggle(t => t.setValue(this.plugin.settings.showStatusBar)
+    new Setting(containerEl).setName('Show document stats in status bar').setDesc('Display heading count, word count, and reading time at the bottom of the window. Click to see a full document outline.')
+      .addToggle(t => t.setValue(this.plugin.settings.showStatusBar)
       .onChange(async v => { this.plugin.settings.showStatusBar = v; await this.plugin.saveSettings(); this.plugin.updateStatusBar() }))
 
     // ═══ HOTKEYS ═══
@@ -345,6 +371,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
       ['Format heading: Sentence case', 'Convert heading text to Sentence case.'],
       ['Quick configure numbering', 'Open a quick dialog to change numbering options.'],
       ['Save settings to front matter', 'Write settings into the note\'s front matter.'],
+      ['Toggle Outline panel', 'Show or hide the Outline sidebar.'],
     ]
     for (const [name, desc] of cmds) {
       const row = cmdBox.createEl('div', { cls: 'ah-cmd-row' })
@@ -382,11 +409,6 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     if (restorePos != null && scrollEl) {
       scrollEl.scrollTop = restorePos
     }
-    
-    // Release the height lock
-    setTimeout(() => {
-      containerEl.style.minHeight = ''
-    }, 10)
   }
 
   private rebuild(scrollEl: Element | null | undefined): void {

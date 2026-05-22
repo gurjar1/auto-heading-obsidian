@@ -438,6 +438,20 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       return true
     },
   })
+
+  // ── Toggle Outline panel ──────────────────────────────────
+  plugin.addCommand({
+    id: 'toggle-outline',
+    name: 'Toggle Outline panel',
+    callback: () => {
+      const leaf = plugin.app.workspace.getLeavesOfType('outline')[0]
+      if (leaf) {
+        leaf.detach()
+      } else {
+        plugin.app.workspace.getRightLeaf(false)?.setViewState({ type: 'outline' })
+      }
+    },
+  })
 }
 
 function escapeRegex(s: string): string {

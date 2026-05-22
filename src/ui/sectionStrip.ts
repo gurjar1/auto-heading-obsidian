@@ -34,10 +34,6 @@ function extractHeadings(view: EditorView): SimpleHeading[] {
   return result
 }
 
-function countWords(text: string): number {
-  const t = text.trim()
-  return t.length === 0 ? 0 : t.split(/\s+/).length
-}
 
 export function createSectionStrip(getPlugin: () => AutoHeadingPlugin | null): Extension {
   return ViewPlugin.define(
@@ -145,7 +141,7 @@ class SectionStripView {
     if (showBreadcrumb && currentIdx >= 0) {
       const chain = this.buildBreadcrumbChain(headings, currentIdx)
       chain.forEach((h, i) => {
-        if (i > 0) this.breadcrumbEl.createSpan({ cls: 'ah-strip-separator', text: ' › ' })
+        if (i > 0) this.breadcrumbEl.createSpan({ cls: 'ah-strip-separator', text: ' / ' })
         const crumb = this.breadcrumbEl.createSpan({
           cls: `ah-strip-crumb${i === chain.length - 1 ? ' ah-strip-crumb-active' : ''}`,
           text: h.text,
