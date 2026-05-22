@@ -68,6 +68,13 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     const scrollEl = containerEl.parentElement
     const restorePos = this._pendingScrollRestore
     this._pendingScrollRestore = null
+    
+    // Prevent scroll jump by locking height temporarily
+    const currentHeight = containerEl.getBoundingClientRect().height
+    if (currentHeight > 0) {
+      containerEl.style.minHeight = `${currentHeight}px`
+    }
+    
     containerEl.empty()
 
     // Use Setting heading API instead of createEl('h2')
@@ -375,6 +382,11 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     if (restorePos != null && scrollEl) {
       scrollEl.scrollTop = restorePos
     }
+    
+    // Release the height lock
+    setTimeout(() => {
+      containerEl.style.minHeight = ''
+    }, 10)
   }
 
   private rebuild(scrollEl: Element | null | undefined): void {

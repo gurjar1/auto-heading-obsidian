@@ -37,25 +37,7 @@ class HeadingGutterMarker extends GutterMarker {
       badge.className = `ah-gutter-badge ah-gutter-badge-${this.level}`
       badge.textContent = `H${this.level}`
       
-      // Merge fold interaction into the badge
-      badge.addEventListener('mousedown', (e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        const plugin = this.getPlugin()
-        if (!plugin) return
-        const mdView = plugin.app.workspace.getActiveViewOfType(MarkdownView)
-        if (!mdView) return
 
-        const pos = view.posAtDOM(container)
-        const line = view.state.doc.lineAt(pos)
-        const lineNo = line.number - 1
-
-        if (this.isFolded) {
-          mdView.editor.unfold(lineNo)
-        } else {
-          mdView.editor.fold(lineNo)
-        }
-      })
       
       container.appendChild(badge)
     }
@@ -84,6 +66,31 @@ function countWords(text: string): number {
 export function createHeadingGutter(getPlugin: () => AutoHeadingPlugin | null): Extension {
   return gutter({
     class: 'ah-heading-gutter',
+    domEventHandlers: {
+      mousedown(view, line, event) {
+        const target = event.target as HTMLElement
+        if (target && target.classList.contains('ah-gutter-badge')) {
+          event.preventDefault()
+          event.stopPropagation()
+          const plugin = getPlugin()
+          if (!plugin) return true
+          const mdView = plugin.app.workspace.getActiveViewOfType(MarkdownView)
+          if (!mdView) return true
+
+          let isFolded = false
+          foldedRanges(view.state).between(line.from, line.to + 1, () => { isFolded = true })
+          
+          const lineNo = view.state.doc.lineAt(line.from).number - 1
+          if (isFolded) {
+            mdView.editor.unfold(lineNo)
+          } else {
+            mdView.editor.fold(lineNo)
+          }
+          return true
+        }
+        return false
+      }
+    },
     lineMarker(view, line) {
       const plugin = getPlugin()
       if (!plugin) return null

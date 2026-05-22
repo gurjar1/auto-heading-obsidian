@@ -136,6 +136,7 @@ export default class AutoHeadingPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings)
     this.refreshDecorations()
+    this.app.workspace.updateOptions()
   }
 
   // ─── Scope Checking (OR logic) ─────────────────────────────

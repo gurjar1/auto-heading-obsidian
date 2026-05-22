@@ -136,7 +136,7 @@ export const DEFAULT_SETTINGS: Readonly<AutoHeadingSettings> = {
   // Section Strip defaults
   stripEnabled: false,
   stripShowBreadcrumb: true,
-  stripUpdateMode: 'cursor',
+  stripUpdateMode: 'scroll',
   stripShowNavArrows: true,
 
   // Heading Toolbar defaults

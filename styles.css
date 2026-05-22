@@ -541,7 +541,9 @@
 
 .ah-strip-separator {
   color: var(--text-faint);
-  font-size: var(--font-ui-small);
+  font-size: 14px;
+  line-height: 1;
+  margin-top: -1px;
   flex-shrink: 0;
   user-select: none;
 }
