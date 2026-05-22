@@ -664,6 +664,10 @@
   background: var(--background-secondary);
 }
 
+.ah-toc-details {
+  margin: 0;
+}
+
 .ah-toc-title {
   font-weight: 700;
   font-size: var(--font-ui-medium);
@@ -672,6 +676,23 @@
   padding-bottom: 8px;
   border-bottom: 1px solid var(--background-modifier-border);
   letter-spacing: 0.02em;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.ah-toc-title::-webkit-details-marker { display: none; }
+
+.ah-toc-title::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 0.15s ease;
+  font-size: 0.85em;
+}
+
+.ah-toc-details[open] > .ah-toc-title::before {
+  transform: rotate(90deg);
 }
 
 .ah-toc-list {

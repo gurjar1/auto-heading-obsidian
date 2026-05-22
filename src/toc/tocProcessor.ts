@@ -15,10 +15,11 @@ interface TocOptions {
   style: 'numbered' | 'bulleted' | 'plain'
   title: string
   indent: boolean
+  collapsed: boolean
 }
 
 function parseOptions(source: string): TocOptions {
-  const opts: TocOptions = { minLevel: 1, maxLevel: 6, style: 'numbered', title: '', indent: true }
+  const opts: TocOptions = { minLevel: 1, maxLevel: 6, style: 'numbered', title: '', indent: true, collapsed: false }
   for (const line of source.split('\n')) {
     const m = line.match(/^\s*(\w+)\s*:\s*(.+)\s*$/)
     if (!m) continue
@@ -32,6 +33,7 @@ function parseOptions(source: string): TocOptions {
       case 'style': opts.style = val.trim() as TocOptions['style']; break
       case 'title': opts.title = val.trim(); break
       case 'indent': opts.indent = val.trim().toLowerCase() !== 'false'; break
+      case 'collapsed': opts.collapsed = val.trim().toLowerCase() !== 'false'; break
     }
   }
   return opts
@@ -56,8 +58,14 @@ async function renderToc(plugin: AutoHeadingPlugin, source: string, el: HTMLElem
   const settings = plugin.getEffectiveSettings(file)
   const analysis = analyzeHeadings(metadata.headings, getLine, settings)
 
-  const container = el.createDiv({ cls: 'ah-toc' })
-  if (opts.title) container.createDiv({ cls: 'ah-toc-title', text: opts.title })
+  const wrapper = el.createDiv({ cls: 'ah-toc' })
+  const title = opts.title || 'Table of Contents'
+
+  // Use <details>/<summary> for collapse support
+  const details = wrapper.createEl('details', { cls: 'ah-toc-details' })
+  if (!opts.collapsed) details.setAttribute('open', '')
+  details.createEl('summary', { cls: 'ah-toc-title', text: title })
+  const container = details
 
   const filtered = analysis.headings.filter(h =>
     h.level >= opts.minLevel && h.level <= opts.maxLevel
