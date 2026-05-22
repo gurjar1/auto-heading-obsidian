@@ -13,6 +13,11 @@ Automatic heading numbering for Obsidian. Numbers your headings in real time and
 - Per-note control via front matter or folder/file selection
 - Smart detection of existing manually-typed numbers
 - Full undo support with Ctrl+Z
+- Interactive Heading Gutter: Displays heading levels (H1, H2, etc.) in the left margin next to line numbers
+- Section Navigation Strip: Sticky bar at the top showing breadcrumb path and section statistics (word count, reading time)
+- Inline Action Toolbar: Quick action buttons on hover for promoting, demoting, or folding specific headings
+- Auto-updating Table of Contents: Generate dynamic TOCs anywhere using an `ah-toc` code block
+- Rich Status Bar: Quick insights into the current section's word count and reading time at the bottom of the editor
 
 ## Getting started
 
@@ -96,6 +101,27 @@ auto-heading: auto, no-indent
 ---
 ```
 
+## Interactive UI Elements
+
+The plugin includes several interactive visual elements to help you navigate and manage large documents:
+
+- **Heading Gutter**: Displays the current heading level (H1, H2, etc.) directly in the editor's left margin, making it easy to see your document's structure at a glance.
+- **Section Navigation Strip**: A sticky bar that appears at the top of the editor when scrolling through long sections. It displays the breadcrumb path to your current cursor location, along with word count and reading time for that specific section.
+- **Inline Action Toolbar**: Hover over any heading to reveal a small toolbar. Use these buttons to quickly promote (shift left) or demote (shift right) the heading level, or to fold/unfold the section content.
+- **Rich Status Bar**: Look at the bottom right of the Obsidian window to see word counts and estimated reading time tailored to the specific section your cursor is currently in.
+
+## Table of Contents
+
+You can insert an auto-updating Table of Contents anywhere in your document by creating a code block with the language `ah-toc`:
+
+```text
+` ` `ah-toc
+` ` `
+```
+*(Remove spaces between backticks)*
+
+The TOC will automatically populate based on your headings and update in real time as you edit the document.
+
 ## Per-note configuration
 
 Add an `auto-heading` key to a note's front matter to control its behavior:
@@ -144,6 +170,8 @@ All commands operate on the current note. Access them through the command palett
 | Copy headings as numbered outline | Copies a numbered outline to your clipboard |
 | Save settings to front matter | Writes current settings into the note's front matter |
 | Quick configure numbering | Opens a dialog to change numbering options for the current note |
+| Fold all sections (view action) | Folds every heading section in the current document |
+| Unfold all sections (view action) | Unfolds every heading section in the current document |
 
 ## How it detects existing numbers
 
