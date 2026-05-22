@@ -232,30 +232,32 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
 
     // ═══ HEADING GUTTER ═══
     sectionHeader(containerEl, 'appearance', 'Heading Gutter')
-    containerEl.createEl('p', { text: 'Interactive gutter with fold chevrons and level badges on heading lines.', cls: 'ah-settings-description' })
+    containerEl.createEl('p', { text: 'Interactive gutter with level badges on heading lines.', cls: 'ah-settings-description' })
     new Setting(containerEl).setName('Enable heading gutter').addToggle(t => t.setValue(this.plugin.settings.gutterEnabled)
       .onChange(async v => { this.plugin.settings.gutterEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
     if (this.plugin.settings.gutterEnabled) {
-      new Setting(containerEl).setName('Show level badges').setDesc('Display H2, H3 etc. in the gutter.')
+      new Setting(containerEl).setName('Show level badges').setDesc('Display H2, H3 etc. in the gutter. Click the badge to fold/unfold.')
         .addToggle(t => t.setValue(this.plugin.settings.gutterShowBadge).onChange(async v => { this.plugin.settings.gutterShowBadge = v; await this.plugin.saveSettings() }))
-      new Setting(containerEl).setName('Show fold chevrons').setDesc('Clickable ▶/▼ to fold/unfold sections.')
-        .addToggle(t => t.setValue(this.plugin.settings.gutterShowChevron).onChange(async v => { this.plugin.settings.gutterShowChevron = v; await this.plugin.saveSettings() }))
       new Setting(containerEl).setName('Show word count on hover').setDesc('Tooltip with section word count and reading time.')
         .addToggle(t => t.setValue(this.plugin.settings.gutterShowWordCount).onChange(async v => { this.plugin.settings.gutterShowWordCount = v; await this.plugin.saveSettings() }))
     }
 
     // ═══ SECTION STRIP ═══
     sectionHeader(containerEl, 'appearance', 'Section Navigation Strip')
-    containerEl.createEl('p', { text: 'Breadcrumb trail, progress dots, and word count at the top of the editor.', cls: 'ah-settings-description' })
+    containerEl.createEl('p', { text: 'Breadcrumb trail at the top of the editor.', cls: 'ah-settings-description' })
     new Setting(containerEl).setName('Enable section strip').addToggle(t => t.setValue(this.plugin.settings.stripEnabled)
       .onChange(async v => { this.plugin.settings.stripEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
     if (this.plugin.settings.stripEnabled) {
       new Setting(containerEl).setName('Show breadcrumb').setDesc('Heading hierarchy trail (e.g. Methods › Analysis).')
-        .addToggle(t => t.setValue(this.plugin.settings.stripShowBreadcrumb).onChange(async v => { this.plugin.settings.stripShowBreadcrumb = v; await this.plugin.saveSettings() }))
-      new Setting(containerEl).setName('Show progress dots').setDesc('Dot indicators for top-level sections.')
-        .addToggle(t => t.setValue(this.plugin.settings.stripShowProgress).onChange(async v => { this.plugin.settings.stripShowProgress = v; await this.plugin.saveSettings() }))
-      new Setting(containerEl).setName('Show word count').setDesc('Section and total word count with reading time.')
-        .addToggle(t => t.setValue(this.plugin.settings.stripShowWordCount).onChange(async v => { this.plugin.settings.stripShowWordCount = v; await this.plugin.saveSettings() }))
+        .addToggle(t => t.setValue(this.plugin.settings.stripShowBreadcrumb).onChange(async v => { this.plugin.settings.stripShowBreadcrumb = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
+      if (this.plugin.settings.stripShowBreadcrumb) {
+        new Setting(containerEl).setName('Breadcrumb update mode').setDesc('Track the cursor position or the scroll position.')
+          .addDropdown(d => d
+            .addOption('cursor', 'Text Cursor')
+            .addOption('scroll', 'Scroll Position')
+            .setValue(this.plugin.settings.stripUpdateMode)
+            .onChange(async (v: 'cursor' | 'scroll') => { this.plugin.settings.stripUpdateMode = v; await this.plugin.saveSettings() }))
+      }
       new Setting(containerEl).setName('Show navigation arrows').setDesc('Previous/next heading buttons.')
         .addToggle(t => t.setValue(this.plugin.settings.stripShowNavArrows).onChange(async v => { this.plugin.settings.stripShowNavArrows = v; await this.plugin.saveSettings() }))
     }
@@ -277,8 +279,8 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     }
 
     // ═══ FOLD CONTROLS ═══
-    sectionHeader(containerEl, 'actions', 'Fold Controls')
-    new Setting(containerEl).setName('Enable fold commands').setDesc('Fold/Unfold All commands in the command palette.')
+    sectionHeader(containerEl, 'actions', 'Enable Fold All Commands')
+    new Setting(containerEl).setName('Enable commands').setDesc('Adds Fold/Unfold All commands to the command palette.')
       .addToggle(t => t.setValue(this.plugin.settings.foldButtonsEnabled).onChange(async v => { this.plugin.settings.foldButtonsEnabled = v; await this.plugin.saveSettings() }))
     sectionHeader(containerEl, 'actions', 'Quick Actions — This Note Only')
     containerEl.createEl('p', { text: 'These buttons apply to the currently open note only. Use Ctrl+Z to undo.', cls: 'ah-settings-description' })

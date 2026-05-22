@@ -67,8 +67,6 @@ export interface AutoHeadingSettings {
   gutterEnabled: boolean
   /** Show H2/H3 level badge in gutter */
   gutterShowBadge: boolean
-  /** Show fold/unfold chevron in gutter */
-  gutterShowChevron: boolean
   /** Show word count in gutter hover tooltip */
   gutterShowWordCount: boolean
 
@@ -77,10 +75,8 @@ export interface AutoHeadingSettings {
   stripEnabled: boolean
   /** Show heading breadcrumb trail */
   stripShowBreadcrumb: boolean
-  /** Show progress dots for top-level headings */
-  stripShowProgress: boolean
-  /** Show word count and reading time */
-  stripShowWordCount: boolean
+  /** How breadcrumbs update (cursor position or scroll position) */
+  stripUpdateMode: 'cursor' | 'scroll'
   /** Show previous/next navigation arrows */
   stripShowNavArrows: boolean
 
@@ -133,16 +129,14 @@ export const DEFAULT_SETTINGS: Readonly<AutoHeadingSettings> = {
   headingIndentGuides: false,
 
   // Heading Gutter defaults
-  gutterEnabled: true,
+  gutterEnabled: false,
   gutterShowBadge: true,
-  gutterShowChevron: false,
   gutterShowWordCount: true,
 
   // Section Strip defaults
   stripEnabled: false,
   stripShowBreadcrumb: true,
-  stripShowProgress: true,
-  stripShowWordCount: true,
+  stripUpdateMode: 'cursor',
   stripShowNavArrows: true,
 
   // Heading Toolbar defaults

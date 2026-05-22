@@ -15,7 +15,6 @@ class HeadingGutterMarker extends GutterMarker {
   constructor(
     readonly level: number,
     readonly isFolded: boolean,
-    readonly showChevron: boolean,
     readonly showBadge: boolean,
     readonly wordCount: number,
     readonly getPlugin: () => AutoHeadingPlugin | null,
@@ -23,7 +22,7 @@ class HeadingGutterMarker extends GutterMarker {
 
   eq(other: HeadingGutterMarker): boolean {
     return this.level === other.level && this.isFolded === other.isFolded &&
-      this.showChevron === other.showChevron && this.showBadge === other.showBadge &&
+      this.showBadge === other.showBadge &&
       this.wordCount === other.wordCount
   }
 
@@ -101,7 +100,6 @@ export function createHeadingGutter(getPlugin: () => AutoHeadingPlugin | null): 
 
       const level = m[1].length
       const showBadge = plugin.settings.gutterShowBadge
-      const showChevron = plugin.settings.gutterShowChevron
       const doc = view.state.doc
       const lineObj = view.state.doc.lineAt(line.from)
 
@@ -122,7 +120,7 @@ export function createHeadingGutter(getPlugin: () => AutoHeadingPlugin | null): 
       const sectionText = nextHeadingFrom > lineObj.to ? doc.sliceString(lineObj.to + 1, nextHeadingFrom) : ''
       const wc = plugin.settings.gutterShowWordCount ? countWords(sectionText) : 0
 
-      return new HeadingGutterMarker(level, isFolded, showChevron, showBadge, wc, getPlugin)
+      return new HeadingGutterMarker(level, isFolded, showBadge, wc, getPlugin)
     },
     lineMarkerChange(update) {
       return update.docChanged || update.selectionSet || update.viewportChanged

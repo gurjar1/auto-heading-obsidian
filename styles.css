@@ -425,8 +425,8 @@
 /* ─── Cluster A: Interactive Heading Gutter ───────────────── */
 
 .ah-heading-gutter {
-  width: 24px;
-  min-width: 24px;
+  width: 28px;
+  min-width: 28px;
 }
 
 .ah-gutter-marker {
@@ -539,40 +539,13 @@
   font-weight: 600;
 }
 
-.ah-strip-sep {
+.ah-strip-separator {
   color: var(--text-faint);
-  font-size: 9px;
+  font-size: var(--font-ui-small);
   flex-shrink: 0;
+  user-select: none;
 }
 
-.ah-strip-progress {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.ah-strip-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-faint);
-  cursor: pointer;
-  transition: background 0.15s, transform 0.15s;
-  opacity: 0.5;
-}
-
-.ah-strip-dot:hover {
-  transform: scale(1.4);
-  opacity: 0.8;
-}
-
-.ah-strip-dot-active {
-  background: var(--text-accent);
-  opacity: 1;
-  transform: scale(1.2);
-}
 
 .ah-strip-nav {
   display: flex;
@@ -602,12 +575,6 @@
   cursor: default;
 }
 
-.ah-strip-stats {
-  font-size: 10px;
-  color: var(--text-faint);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
 
 /* ─── Cluster C: Heading Inline Toolbar ───────────────────── */
 

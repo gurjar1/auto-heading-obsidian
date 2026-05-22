@@ -52,9 +52,7 @@ export function createSectionStrip(getPlugin: () => AutoHeadingPlugin | null): E
 class SectionStripView {
   private el: HTMLElement
   private breadcrumbEl: HTMLElement
-  private progressEl: HTMLElement
   private navEl: HTMLElement
-  private statsEl: HTMLElement
   private prevBtn: HTMLButtonElement
   private nextBtn: HTMLButtonElement
 
@@ -63,9 +61,7 @@ class SectionStripView {
     this.el.className = 'ah-section-strip'
 
     this.breadcrumbEl = this.el.createDiv({ cls: 'ah-strip-breadcrumb' })
-    this.progressEl = this.el.createDiv({ cls: 'ah-strip-progress' })
     this.navEl = this.el.createDiv({ cls: 'ah-strip-nav' })
-    this.statsEl = this.el.createDiv({ cls: 'ah-strip-stats' })
 
     this.prevBtn = activeDocument.createElement('button')
     this.prevBtn.className = 'ah-strip-btn'
@@ -88,6 +84,8 @@ class SectionStripView {
   update(update: ViewUpdate): void {
     if (update.selectionSet || update.docChanged || update.geometryChanged) {
       this.refresh()
+    } else if ((this.getPlugin()?.settings as any).stripUpdateMode === 'scroll') {
+      this.refresh()
     }
   }
 
@@ -109,8 +107,13 @@ class SectionStripView {
     }
     this.el.classList.remove('ah-strip-hidden')
 
-    const cursorPos = this.view.state.selection.main.head
-    const cursorLine = this.view.state.doc.lineAt(cursorPos).number
+    const mode = (plugin.settings as any).stripUpdateMode || 'cursor'
+    let targetPos = this.view.state.selection.main.head
+    if (mode === 'scroll') {
+      // Find the line at the top of the viewport
+      targetPos = this.view.viewport.from
+    }
+    const cursorLine = this.view.state.doc.lineAt(targetPos).number
 
     let currentIdx = -1
     for (let i = headings.length - 1; i >= 0; i--) {
@@ -118,8 +121,6 @@ class SectionStripView {
     }
 
     const showBreadcrumb = (plugin.settings as any).stripShowBreadcrumb !== false
-    const showProgress = (plugin.settings as any).stripShowProgress !== false
-    const showWordCount = (plugin.settings as any).stripShowWordCount !== false
     const showNav = (plugin.settings as any).stripShowNavArrows !== false
 
     // Breadcrumb
@@ -128,30 +129,12 @@ class SectionStripView {
     if (showBreadcrumb && currentIdx >= 0) {
       const chain = this.buildBreadcrumbChain(headings, currentIdx)
       chain.forEach((h, i) => {
-        if (i > 0) this.breadcrumbEl.createSpan({ cls: 'ah-strip-sep', text: '›' })
+        if (i > 0) this.breadcrumbEl.createSpan({ cls: 'ah-strip-separator', text: ' › ' })
         const crumb = this.breadcrumbEl.createSpan({
           cls: `ah-strip-crumb${i === chain.length - 1 ? ' ah-strip-crumb-active' : ''}`,
-          text: h.text.substring(0, 30) + (h.text.length > 30 ? '…' : ''),
+          text: h.text,
         })
         crumb.addEventListener('click', () => this.jumpTo(h.from))
-      })
-    }
-
-    // Progress dots
-    this.progressEl.empty()
-    this.progressEl.style.display = showProgress ? '' : 'none'
-    if (showProgress) {
-      const minLevel = Math.min(...headings.map(h => h.level))
-      const topLevel = headings.filter(h => h.level === minLevel)
-      let activeTLIdx = -1
-      for (let i = topLevel.length - 1; i >= 0; i--) {
-        if (topLevel[i].lineNum <= cursorLine) { activeTLIdx = i; break }
-      }
-      topLevel.forEach((h, i) => {
-        const dot = this.progressEl.createSpan({
-          cls: `ah-strip-dot${i === activeTLIdx ? ' ah-strip-dot-active' : ''}`,
-        })
-        dot.addEventListener('click', () => this.jumpTo(h.from))
       })
     }
 
@@ -159,23 +142,6 @@ class SectionStripView {
     this.navEl.style.display = showNav ? '' : 'none'
     this.prevBtn.disabled = currentIdx <= 0
     this.nextBtn.disabled = currentIdx >= headings.length - 1
-
-    // Stats
-    this.statsEl.style.display = showWordCount ? '' : 'none'
-    if (showWordCount) {
-      const doc = this.view.state.doc
-      const totalWords = countWords(doc.sliceString(0, doc.length))
-      const totalTime = Math.max(1, Math.ceil(totalWords / 238))
-      let sectionWords = 0
-      if (currentIdx >= 0) {
-        const start = doc.line(headings[currentIdx].lineNum).to + 1
-        const end = currentIdx + 1 < headings.length
-          ? doc.line(headings[currentIdx + 1].lineNum).from - 1
-          : doc.length
-        if (end > start) sectionWords = countWords(doc.sliceString(start, end))
-      }
-      this.statsEl.textContent = `${sectionWords}w / ${totalWords}w · ~${totalTime}min`
-    }
   }
 
   private buildBreadcrumbChain(headings: SimpleHeading[], idx: number): SimpleHeading[] {
