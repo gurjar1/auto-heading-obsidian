@@ -249,15 +249,21 @@ export default class AutoHeadingPlugin extends Plugin {
       }
     }
 
-    updateDecorationSettings(effectiveSettings, isEnabled)
+    const settingsChanged = updateDecorationSettings(effectiveSettings, isEnabled)
     updatePostProcessorSettings(effectiveSettings, isEnabled)
 
-    this.app.workspace.iterateAllLeaves((leaf) => {
-      if (leaf.view instanceof MarkdownView) {
-        const cmView = (leaf.view.editor as unknown as { cm: EditorView }).cm
-        if (cmView) cmView.dispatch({})
-      }
-    })
+    // Only force editor rebuilds when settings/scope actually changed.
+    // The StateField already handles doc-change rebuilds automatically.
+    // Unnecessary async dispatches during typing were the primary cause
+    // of cursor jumping to the start of the line.
+    if (settingsChanged) {
+      this.app.workspace.iterateAllLeaves((leaf) => {
+        if (leaf.view instanceof MarkdownView) {
+          const cmView = (leaf.view.editor as unknown as { cm: EditorView }).cm
+          if (cmView) cmView.dispatch({})
+        }
+      })
+    }
 
     // Set indent size CSS custom property on root for all views
     if (effectiveSettings.headingIndent) {

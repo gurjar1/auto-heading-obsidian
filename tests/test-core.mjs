@@ -238,6 +238,13 @@ function detectNumber(text) {
         confidence: 'high',
       }
     }
+    // Handle partial marker (during deletion): marker without trailing space
+    return {
+      style: 'arabic',
+      numberPart: spaceIdx === 0 ? '' : withoutMarker,
+      fullMatch: spaceIdx === 0 ? trimmed.substring(0, 2) : trimmed,
+      confidence: 'high',
+    }
   }
 
   for (const p of PATTERNS) {
@@ -337,6 +344,35 @@ test('No marker: "6 ways to identify" stays untouched by marker check', () => {
   // Should match via catch-all (low confidence), NOT via marker
   assertEqual(result?.numberPart, '6')
   // Importantly: no marker = remover skips lowercase-following numbers
+})
+
+// ── U+2060 Partial Marker Detection (fix for duplicate number flash) ──
+test('Partial marker: "\\u20601." (marker + number, no space)', () => {
+  const result = detectNumber('\u20601.')
+  assertEqual(result != null, true, 'should detect partial marker')
+  assertEqual(result?.fullMatch, '\u20601.', 'fullMatch should be entire content')
+  assertEqual(result?.confidence, 'high')
+})
+
+test('Partial marker: "\\u2060" alone (just marker)', () => {
+  const result = detectNumber('\u2060')
+  assertEqual(result != null, true, 'should detect bare marker')
+  assertEqual(result?.fullMatch, '\u2060', 'fullMatch should be the marker')
+  assertEqual(result?.confidence, 'high')
+})
+
+test('Partial marker: "\\u2060 Hello" (marker + space, no number)', () => {
+  const result = detectNumber('\u2060 Hello')
+  assertEqual(result != null, true, 'should detect marker+space')
+  assertEqual(result?.fullMatch, '\u2060 ', 'fullMatch should be marker+space')
+  assertEqual(result?.numberPart, '', 'numberPart should be empty')
+})
+
+test('Partial marker: "\\u20601.2" (marker + hierarchical, no space)', () => {
+  const result = detectNumber('\u20601.2')
+  assertEqual(result != null, true, 'should detect partial hierarchical marker')
+  assertEqual(result?.fullMatch, '\u20601.2')
+  assertEqual(result?.numberPart, '1.2')
 })
 
 test('Detect "1.1 heading 1.1" (hierarchical burn-in)', () => {

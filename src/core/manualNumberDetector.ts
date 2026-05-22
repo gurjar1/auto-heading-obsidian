@@ -123,6 +123,17 @@ export function detectManualNumber(headingText: string): DetectedNumber | null {
         confidence: 'high',
       }
     }
+    // Handle partial marker (e.g., during deletion of heading number text):
+    // Marker without trailing space, or marker + space but no number between.
+    // Always detect to prevent duplicate number display (raw marker text + widget).
+    return {
+      fullMatch: spaceIdx === 0
+        ? trimmed.substring(0, 2)   // marker + space only (no number between)
+        : trimmed,                  // marker + partial number (no trailing space)
+      numberPart: spaceIdx === 0 ? '' : withoutMarker,
+      style: 'arabic',
+      confidence: 'high',
+    }
   }
 
   for (const pattern of PATTERNS) {

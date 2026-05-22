@@ -32,12 +32,29 @@ import { detectManualNumber, DetectedNumber } from '../core/manualNumberDetector
 let currentSettings: AutoHeadingSettings = { ...DEFAULT_SETTINGS }
 let noteEnabled = false
 let settingsVersion = 0
-let lastBuiltVersion = -1
+let lastBuiltNumberVersion = -1
+let lastBuiltIndentVersion = -1
 
-export function updateDecorationSettings(settings: AutoHeadingSettings, enabled: boolean): void {
+// Track previous values to detect actual changes
+let prevSettingsJSON = ''
+let prevNoteEnabled = false
+
+/**
+ * Update the decoration settings. Returns true if settings actually changed.
+ * Only increments settingsVersion when a real change is detected,
+ * preventing unnecessary decoration rebuilds that cause cursor jumps.
+ */
+export function updateDecorationSettings(settings: AutoHeadingSettings, enabled: boolean): boolean {
+  const newJSON = JSON.stringify(settings)
+  if (newJSON === prevSettingsJSON && enabled === prevNoteEnabled) {
+    return false
+  }
   currentSettings = settings
   noteEnabled = enabled
+  prevSettingsJSON = newJSON
+  prevNoteEnabled = enabled
   settingsVersion++
+  return true
 }
 
 // ─── Heading Info ─────────────────────────────────────────────────────
@@ -122,7 +139,7 @@ interface LineDecoInfo {
 }
 
 function buildDecorations(state: EditorState): DecorationSet {
-  lastBuiltVersion = settingsVersion
+  lastBuiltNumberVersion = settingsVersion
 
   if (!noteEnabled || !currentSettings.enabled) {
     return Decoration.none
@@ -249,6 +266,7 @@ function buildDecorations(state: EditorState): DecorationSet {
  * Applies CSS classes like 'ah-indent-2', 'ah-indent-guide' to heading lines.
  */
 function buildLineDecorations(state: EditorState): DecorationSet {
+  lastBuiltIndentVersion = settingsVersion
   if (!noteEnabled || !currentSettings.enabled || !currentSettings.headingIndent) {
     return Decoration.none
   }
@@ -293,8 +311,7 @@ export const headingNumberField = StateField.define<DecorationSet>({
 
   update(value: DecorationSet, tr: Transaction): DecorationSet {
     if (tr.docChanged) return buildDecorations(tr.state)
-    if (lastBuiltVersion !== settingsVersion) return buildDecorations(tr.state)
-    if (tr.effects.length > 0) return buildDecorations(tr.state)
+    if (lastBuiltNumberVersion !== settingsVersion) return buildDecorations(tr.state)
     return value
   },
 
@@ -310,8 +327,7 @@ export const headingIndentField = StateField.define<DecorationSet>({
 
   update(value: DecorationSet, tr: Transaction): DecorationSet {
     if (tr.docChanged) return buildLineDecorations(tr.state)
-    if (lastBuiltVersion !== settingsVersion) return buildLineDecorations(tr.state)
-    if (tr.effects.length > 0) return buildLineDecorations(tr.state)
+    if (lastBuiltIndentVersion !== settingsVersion) return buildLineDecorations(tr.state)
     return value
   },
 
@@ -321,5 +337,12 @@ export const headingIndentField = StateField.define<DecorationSet>({
 })
 
 export function getEditorExtensions() {
-  return [headingNumberField, headingIndentField]
+  return [
+    headingNumberField,
+    headingIndentField,
+    // Treat replace decoration ranges as atomic units for cursor movement.
+    // This prevents the cursor from entering replaced number ranges,
+    // eliminating cursor confusion during decoration rebuilds.
+    EditorView.atomicRanges.of(view => view.state.field(headingNumberField)),
+  ]
 }
