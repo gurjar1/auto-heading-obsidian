@@ -86,9 +86,7 @@ export function createHeadingGutter(getPlugin: () => AutoHeadingPlugin | null): 
     class: 'ah-heading-gutter',
     lineMarker(view, line) {
       const plugin = getPlugin()
-      if (!plugin || !plugin.settings.enabled) return null
-      const fileName = plugin.app.workspace.getActiveFile()?.path
-      if (fileName && !plugin.getPerNoteEnabled(fileName)) return null
+      if (!plugin) return null
       if (!plugin.settings.gutterEnabled) return null
 
       const text = view.state.doc.lineAt(line.from).text

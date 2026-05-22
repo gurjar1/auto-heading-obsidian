@@ -55,6 +55,7 @@ class SectionStripView {
   private navEl: HTMLElement
   private prevBtn: HTMLButtonElement
   private nextBtn: HTMLButtonElement
+  private scrollHandler: () => void
 
   constructor(private view: EditorView, private getPlugin: () => AutoHeadingPlugin | null) {
     this.el = activeDocument.createElement('div')
@@ -78,6 +79,14 @@ class SectionStripView {
     this.navEl.appendChild(this.nextBtn)
 
     view.dom.insertBefore(this.el, view.dom.firstChild)
+
+    this.scrollHandler = () => {
+      if ((this.getPlugin()?.settings as any).stripUpdateMode === 'scroll') {
+        this.refresh()
+      }
+    }
+    this.view.scrollDOM.addEventListener('scroll', this.scrollHandler, { passive: true })
+
     this.refresh()
   }
 
@@ -90,6 +99,7 @@ class SectionStripView {
   }
 
   destroy(): void {
+    this.view.scrollDOM.removeEventListener('scroll', this.scrollHandler)
     this.el.remove()
   }
 
@@ -110,8 +120,14 @@ class SectionStripView {
     const mode = (plugin.settings as any).stripUpdateMode || 'cursor'
     let targetPos = this.view.state.selection.main.head
     if (mode === 'scroll') {
-      // Find the line at the top of the viewport
-      targetPos = this.view.viewport.from
+      const rect = this.view.scrollDOM.getBoundingClientRect()
+      const pos = this.view.posAtCoords({ x: rect.left + 50, y: rect.top + 40 }, false)
+      if (pos != null) {
+        targetPos = pos
+      } else {
+        const block = this.view.lineBlockAtHeight(this.view.scrollDOM.scrollTop)
+        targetPos = block ? block.from : this.view.viewport.from
+      }
     }
     const cursorLine = this.view.state.doc.lineAt(targetPos).number
 

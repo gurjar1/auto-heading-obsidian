@@ -373,13 +373,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
 
     // Restore scroll position if this was a rebuild (not a fresh open)
     if (restorePos != null && scrollEl) {
-      // Double-RAF: first frame lets the browser lay out the new DOM,
-      // second frame applies the scroll after layout is complete
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          scrollEl.scrollTop = restorePos
-        })
-      })
+      scrollEl.scrollTop = restorePos
     }
   }
 
