@@ -619,8 +619,10 @@
   pointer-events: auto;
 }
 
-/* Show toolbar when its parent line has focus */
-.cm-line:has(.ah-heading-toolbar) .ah-heading-toolbar,
+/* Show toolbar when its parent line has focus or is hovered */
+.cm-active .ah-heading-toolbar,
+.cm-activeLine .ah-heading-toolbar,
+.cm-line:hover .ah-heading-toolbar,
 .ah-heading-toolbar:hover {
   opacity: 1;
 }
