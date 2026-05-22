@@ -85,40 +85,35 @@ export class QuickConfigModal extends Modal {
           this.plugin.refreshDecorations()
         }))
 
-    // Quick style preset
-    new Setting(contentEl)
-      .setName('Style preset')
-      .addDropdown(dropdown => {
-        dropdown.addOption('numeric', '1.1.1 (Numeric)')
-        dropdown.addOption('letter-numeric', 'A.1.a (Mixed)')
-        dropdown.addOption('roman-letter', 'I.A.1 (Formal)')
-        dropdown.addOption('letter', 'A.A.A (All Letters)')
-        dropdown.addOption('roman', 'I.I.I (All Roman)')
+    // Per-level style picker
+    const styleSection = contentEl.createEl('div')
+    styleSection.createEl('div', { text: 'Style per level', cls: 'setting-item-name' })
 
-        // Determine current preset
-        const styles = this.plugin.settings.levelStyles
-        let currentPreset = 'numeric'
-        if (styles[0] === 'A' && styles[1] === '1' && styles[2] === 'a') currentPreset = 'letter-numeric'
-        else if (styles[0] === 'I' && styles[1] === 'A' && styles[2] === '1') currentPreset = 'roman-letter'
-        else if (styles.every(s => s === 'A')) currentPreset = 'letter'
-        else if (styles.every(s => s === 'I')) currentPreset = 'roman'
+    const previewEl = styleSection.createEl('div', {
+      cls: 'ah-style-grid-preview',
+      text: this.getStylePreview(),
+    })
 
-        dropdown.setValue(currentPreset)
-        dropdown.onChange(async (value) => {
-          const presets: Record<string, [NumberingStyle, NumberingStyle, NumberingStyle, NumberingStyle, NumberingStyle, NumberingStyle]> = {
-            'numeric': ['1', '1', '1', '1', '1', '1'],
-            'letter-numeric': ['A', '1', 'a', '1', 'a', '1'],
-            'roman-letter': ['I', 'A', '1', 'a', '1', '1'],
-            'letter': ['A', 'A', 'A', 'A', 'A', 'A'],
-            'roman': ['I', 'I', 'I', 'I', 'I', 'I'],
-          }
-          if (presets[value]) {
-            this.plugin.settings.levelStyles = [...presets[value]]
+    const styleLabels: Record<string, string> = {
+      '1': '1 (Arabic)', 'A': 'A (Upper)', 'a': 'a (Lower)',
+      'I': 'I (Roman)', 'i': 'i (roman)',
+    }
+    const styleOptions = ['1', 'A', 'a', 'I', 'i']
+
+    for (let lvl = 0; lvl < 6; lvl++) {
+      new Setting(styleSection)
+        .setName(`H${lvl + 1}`)
+        .addDropdown(dd => {
+          for (const s of styleOptions) dd.addOption(s, styleLabels[s])
+          dd.setValue(this.plugin.settings.levelStyles[lvl])
+          dd.onChange(async (v) => {
+            this.plugin.settings.levelStyles[lvl] = v as NumberingStyle
             await this.plugin.saveSettings()
             this.plugin.refreshDecorations()
-          }
+            previewEl.textContent = this.getStylePreview()
+          })
         })
-      })
+    }
 
     // Separator
     new Setting(contentEl)
@@ -174,5 +169,12 @@ export class QuickConfigModal extends Modal {
     const { contentEl, titleEl } = this
     contentEl.empty()
     titleEl.empty()
+  }
+
+  private getStylePreview(): string {
+    const styles = this.plugin.settings.levelStyles
+    const sep = this.plugin.settings.levelSeparator || '.'
+    const samples: Record<string, string> = { '1': '1', 'A': 'A', 'a': 'a', 'I': 'I', 'i': 'i' }
+    return `Preview: ${styles.slice(0, 4).map(s => samples[s] || '1').join(sep)}`
   }
 }

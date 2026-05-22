@@ -346,3 +346,8 @@ export function getEditorExtensions() {
     EditorView.atomicRanges.of(view => view.state.field(headingNumberField)),
   ]
 }
+
+/** Expose gutter settings state for use by headingGutter.ts */
+export function getGutterSettings(): { enabled: boolean; noteEnabled: boolean; settings: typeof currentSettings } {
+  return { enabled: currentSettings.enabled, noteEnabled: noteEnabled, settings: currentSettings }
+}

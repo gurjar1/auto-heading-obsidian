@@ -62,6 +62,44 @@ export interface AutoHeadingSettings {
   /** Show subtle vertical guide lines alongside indented headings */
   headingIndentGuides: boolean
 
+  // ── Heading Gutter (Cluster A) ──────────────────────────────
+  /** Show interactive heading gutter with badges and fold chevrons */
+  gutterEnabled: boolean
+  /** Show H2/H3 level badge in gutter */
+  gutterShowBadge: boolean
+  /** Show fold/unfold chevron in gutter */
+  gutterShowChevron: boolean
+  /** Show word count in gutter hover tooltip */
+  gutterShowWordCount: boolean
+
+  // ── Section Navigation Strip (Cluster B) ─────────────────────
+  /** Show section navigation strip at top of editor */
+  stripEnabled: boolean
+  /** Show heading breadcrumb trail */
+  stripShowBreadcrumb: boolean
+  /** Show progress dots for top-level headings */
+  stripShowProgress: boolean
+  /** Show word count and reading time */
+  stripShowWordCount: boolean
+  /** Show previous/next navigation arrows */
+  stripShowNavArrows: boolean
+
+  // ── Heading Inline Toolbar (Cluster C) ───────────────────────
+  /** Show inline action toolbar on heading lines */
+  toolbarEnabled: boolean
+  /** Show promote/demote buttons in toolbar */
+  toolbarShowPromote: boolean
+  /** Show copy link button in toolbar */
+  toolbarShowCopyLink: boolean
+  /** Show format button in toolbar */
+  toolbarShowFormat: boolean
+  /** Show skip toggle button in toolbar */
+  toolbarShowSkip: boolean
+
+  // ── Fold Controls (Cluster F) ────────────────────────────────
+  /** Show fold control buttons in editor view actions */
+  foldButtonsEnabled: boolean
+
   /** Legacy — kept for mergeSettings compatibility */
   enabled: boolean
 }
@@ -93,6 +131,29 @@ export const DEFAULT_SETTINGS: Readonly<AutoHeadingSettings> = {
   headingIndent: false,
   headingIndentSize: 20,
   headingIndentGuides: false,
+
+  // Heading Gutter defaults
+  gutterEnabled: true,
+  gutterShowBadge: true,
+  gutterShowChevron: true,
+  gutterShowWordCount: true,
+
+  // Section Strip defaults
+  stripEnabled: true,
+  stripShowBreadcrumb: true,
+  stripShowProgress: true,
+  stripShowWordCount: true,
+  stripShowNavArrows: true,
+
+  // Heading Toolbar defaults
+  toolbarEnabled: true,
+  toolbarShowPromote: true,
+  toolbarShowCopyLink: true,
+  toolbarShowFormat: true,
+  toolbarShowSkip: true,
+
+  // Fold Controls defaults
+  foldButtonsEnabled: true,
 
   enabled: false,
 }

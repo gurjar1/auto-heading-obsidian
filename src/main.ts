@@ -13,7 +13,7 @@ import type { EditorView } from '@codemirror/view'
 import { AutoHeadingSettings, DEFAULT_SETTINGS, mergeSettings } from './settings/settingsTypes'
 import { AutoHeadingSettingTab } from './settings/settingsTab'
 import { parsePerNoteSettings } from './settings/perNoteSettings'
-import { getEditorExtensions, updateDecorationSettings } from './decorations/editorExtension'
+import { getEditorExtensions, updateDecorationSettings, getGutterSettings } from './decorations/editorExtension'
 import {
   createHeadingPostProcessor,
   updatePostProcessorSettings,
@@ -23,6 +23,10 @@ import { registerCommands } from './commands/commandRegistry'
 import { registerContextMenu } from './ui/contextMenu'
 import { StatusBarManager } from './ui/statusBar'
 import { burnInNumbers } from './burnIn/burnInEngine'
+import { registerTocProcessor } from './toc/tocProcessor'
+import { createHeadingGutter } from './decorations/headingGutter'
+import { createHeadingToolbar } from './decorations/headingToolbar'
+import { createSectionStrip } from './ui/sectionStrip'
 
 export default class AutoHeadingPlugin extends Plugin {
   settings!: AutoHeadingSettings
@@ -41,16 +45,29 @@ export default class AutoHeadingPlugin extends Plugin {
     console.info('Auto Heading: Loading plugin v' + this.manifest.version)
     await this.loadSettings()
 
+    // Core editor extensions
     this.registerEditorExtension(getEditorExtensions())
     this.registerMarkdownPostProcessor(createHeadingPostProcessor())
+
+    // Feature extensions: Gutter, Toolbar, Section Strip
+    this.registerEditorExtension([
+      createHeadingGutter(() => getGutterSettings()),
+      createHeadingToolbar(() => this as AutoHeadingPlugin),
+      createSectionStrip(() => this as AutoHeadingPlugin),
+    ])
+
     this.refreshDecorations()
 
     registerCommands(this)
     registerContextMenu(this)
+    registerTocProcessor(this)
     this.addSettingTab(new AutoHeadingSettingTab(this.app, this))
 
     this.statusBar = new StatusBarManager(this)
     this.statusBar.init()
+
+    // Fold control buttons in view actions
+    this.registerFoldButtons()
 
     // Active leaf change → refresh decorations
     this.registerEvent(
@@ -295,5 +312,46 @@ export default class AutoHeadingPlugin extends Plugin {
       }
     })
     return folders.sort()
+  }
+
+  /**
+   * Register fold/unfold buttons in the editor view header actions.
+   */
+  private registerFoldButtons(): void {
+    if (!this.settings.foldButtonsEnabled) return
+
+    // "Fold All" button
+    this.addCommand({
+      id: 'view-action-fold-all',
+      name: 'Fold all sections (view action)',
+      icon: 'chevrons-down-up',
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView)
+        if (!view) return false
+        if (checking) return true
+        const editor = view.editor
+        for (let i = 0; i < editor.lineCount(); i++) {
+          if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) editor.fold(i)
+        }
+        return true
+      },
+    })
+
+    // "Unfold All" button
+    this.addCommand({
+      id: 'view-action-unfold-all',
+      name: 'Unfold all sections (view action)',
+      icon: 'chevrons-up-down',
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView)
+        if (!view) return false
+        if (checking) return true
+        const editor = view.editor
+        for (let i = editor.lineCount() - 1; i >= 0; i--) {
+          if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) editor.unfold(i)
+        }
+        return true
+      },
+    })
   }
 }

@@ -230,8 +230,235 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       return true
     },
   })
+
+  // ── Navigate: Next Heading ────────────────────────────────
+  plugin.addCommand({
+    id: 'navigate-next-heading',
+    name: 'Navigate: next heading',
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
+      const cursor = editor.getCursor()
+      const lineCount = editor.lineCount()
+      for (let i = cursor.line + 1; i < lineCount; i++) {
+        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
+          if (checking) return true
+          editor.setCursor({ line: i, ch: 0 })
+          return true
+        }
+      }
+      return false
+    },
+  })
+
+  // ── Navigate: Previous Heading ────────────────────────────
+  plugin.addCommand({
+    id: 'navigate-prev-heading',
+    name: 'Navigate: previous heading',
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
+      const cursor = editor.getCursor()
+      for (let i = cursor.line - 1; i >= 0; i--) {
+        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
+          if (checking) return true
+          editor.setCursor({ line: i, ch: 0 })
+          return true
+        }
+      }
+      return false
+    },
+  })
+
+  // ── Navigate: Go to heading (fuzzy picker) ────────────────
+  plugin.addCommand({
+    id: 'navigate-go-to-heading',
+    name: 'Navigate: go to heading…',
+    checkCallback: (checking: boolean) => {
+      const view = plugin.app.workspace.getActiveViewOfType(MarkdownView)
+      if (!view?.file) return false
+      const md = plugin.app.metadataCache.getFileCache(view.file)
+      if (!md?.headings || md.headings.length === 0) return false
+      if (checking) return true
+
+      const s = plugin.getEffectiveSettings(view.file)
+      const getLine = (line: number) => view.editor.getLine(line)
+      const analysis = analyzeHeadings(md.headings, getLine, s)
+
+      const { FuzzySuggestModal } = require('obsidian') as typeof import('obsidian')
+      class HeadingPicker extends FuzzySuggestModal<{ line: number; text: string }> {
+        getItems() {
+          return analysis.headings.map(h => ({
+            line: h.line,
+            text: `${'  '.repeat(h.level - 1)}${h.isSkipped ? '' : h.formattedNumber + s.separator + ' '}${h.cleanTitle}`,
+          }))
+        }
+        getItemText(item: { text: string }) { return item.text }
+        onChooseItem(item: { line: number }) {
+          view.editor.setCursor({ line: item.line, ch: 0 })
+          view.editor.scrollIntoView({ from: { line: item.line, ch: 0 }, to: { line: item.line, ch: 0 } }, true)
+        }
+      }
+      new HeadingPicker(plugin.app).open()
+      return true
+    },
+  })
+
+  // ── Copy link to current section ──────────────────────────
+  plugin.addCommand({
+    id: 'copy-heading-link',
+    name: 'Copy link to current section',
+    editorCheckCallback: (checking: boolean, editor: Editor, view: MarkdownView) => {
+      const cursor = editor.getCursor()
+      // Find nearest heading at or above cursor
+      for (let i = cursor.line; i >= 0; i--) {
+        const line = editor.getLine(i)
+        const match = line.match(/^\s{0,3}#{1,6}\s+(.+)/)
+        if (match) {
+          if (checking) return true
+          let headingText = match[1]
+            .replace(/\s*<!--\s*(?:skip|no-number|ah-skip|skip-number)\s*-->\s*/g, '')
+            .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
+            .trim()
+          // Remove any auto-number prefix (contains U+2060 marker)
+          headingText = headingText.replace(/^[\u2060\d.A-Za-z()]+[\s.:\-—)]+\s*/, '')
+          const fileName = view.file?.basename || ''
+          const link = `[[${fileName}#${headingText}]]`
+          void navigator.clipboard.writeText(link)
+          new Notice(`Copied: ${link}`)
+          return true
+        }
+      }
+      return false
+    },
+  })
+
+  // ── Fold all headings ─────────────────────────────────────
+  plugin.addCommand({
+    id: 'fold-all-headings',
+    name: 'Fold all headings',
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
+      const lineCount = editor.lineCount()
+      let hasHeading = false
+      for (let i = 0; i < lineCount; i++) {
+        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) { hasHeading = true; break }
+      }
+      if (!hasHeading) return false
+      if (checking) return true
+      for (let i = 0; i < lineCount; i++) {
+        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
+          editor.fold(i)
+        }
+      }
+      new Notice('Auto Heading: All headings folded')
+      return true
+    },
+  })
+
+  // ── Unfold all headings ───────────────────────────────────
+  plugin.addCommand({
+    id: 'unfold-all-headings',
+    name: 'Unfold all headings',
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
+      const lineCount = editor.lineCount()
+      let hasHeading = false
+      for (let i = 0; i < lineCount; i++) {
+        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) { hasHeading = true; break }
+      }
+      if (!hasHeading) return false
+      if (checking) return true
+      for (let i = lineCount - 1; i >= 0; i--) {
+        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
+          editor.unfold(i)
+        }
+      }
+      new Notice('Auto Heading: All headings unfolded')
+      return true
+    },
+  })
+
+  // ── Promote heading (remove one #) ─────────────────────────
+  plugin.addCommand({
+    id: 'promote-heading',
+    name: 'Promote heading (e.g. H3 → H2)',
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
+      const cursor = editor.getCursor()
+      const lineText = editor.getLine(cursor.line)
+      const match = lineText.match(/^(\s{0,3})(#{2,6})(\s+.*)$/)
+      if (!match) return false
+      if (checking) return true
+      const newLine = match[1] + match[2].slice(1) + match[3]
+      editor.setLine(cursor.line, newLine)
+      plugin.refreshDecorations()
+      return true
+    },
+  })
+
+  // ── Demote heading (add one #) ─────────────────────────────
+  plugin.addCommand({
+    id: 'demote-heading',
+    name: 'Demote heading (e.g. H2 → H3)',
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
+      const cursor = editor.getCursor()
+      const lineText = editor.getLine(cursor.line)
+      const match = lineText.match(/^(\s{0,3})(#{1,5})(\s+.*)$/)
+      if (!match) return false
+      if (checking) return true
+      const newLine = match[1] + match[2] + '#' + match[3]
+      editor.setLine(cursor.line, newLine)
+      plugin.refreshDecorations()
+      return true
+    },
+  })
+
+  // ── Format heading: Title Case ─────────────────────────────
+  plugin.addCommand({
+    id: 'format-heading-title-case',
+    name: 'Format heading: Title Case',
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
+      const cursor = editor.getCursor()
+      const lineText = editor.getLine(cursor.line)
+      const match = lineText.match(/^(\s{0,3}#{1,6}\s+)(.+)$/)
+      if (!match) return false
+      if (checking) return true
+      const titleCased = toTitleCase(match[2])
+      editor.setLine(cursor.line, match[1] + titleCased)
+      return true
+    },
+  })
+
+  // ── Format heading: Sentence case ──────────────────────────
+  plugin.addCommand({
+    id: 'format-heading-sentence-case',
+    name: 'Format heading: Sentence case',
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
+      const cursor = editor.getCursor()
+      const lineText = editor.getLine(cursor.line)
+      const match = lineText.match(/^(\s{0,3}#{1,6}\s+)(.+)$/)
+      if (!match) return false
+      if (checking) return true
+      const sentenceCased = toSentenceCase(match[2])
+      editor.setLine(cursor.line, match[1] + sentenceCased)
+      return true
+    },
+  })
 }
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+const SMALL_WORDS = new Set([
+  'a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'yet', 'so',
+  'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'as', 'vs', 'via',
+])
+
+function toTitleCase(text: string): string {
+  return text.replace(/\S+/g, (word, index) => {
+    if (index === 0 || !SMALL_WORDS.has(word.toLowerCase())) {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    }
+    return word.toLowerCase()
+  })
+}
+
+function toSentenceCase(text: string): string {
+  if (text.length === 0) return text
+  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
 }

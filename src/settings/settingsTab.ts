@@ -230,7 +230,56 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
       }
     }
 
-    // ═══ QUICK ACTIONS ═══
+    // ═══ HEADING GUTTER ═══
+    sectionHeader(containerEl, 'appearance', 'Heading Gutter')
+    containerEl.createEl('p', { text: 'Interactive gutter with fold chevrons and level badges on heading lines.', cls: 'ah-settings-description' })
+    new Setting(containerEl).setName('Enable heading gutter').addToggle(t => t.setValue(this.plugin.settings.gutterEnabled)
+      .onChange(async v => { this.plugin.settings.gutterEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
+    if (this.plugin.settings.gutterEnabled) {
+      new Setting(containerEl).setName('Show level badges').setDesc('Display H2, H3 etc. in the gutter.')
+        .addToggle(t => t.setValue(this.plugin.settings.gutterShowBadge).onChange(async v => { this.plugin.settings.gutterShowBadge = v; await this.plugin.saveSettings() }))
+      new Setting(containerEl).setName('Show fold chevrons').setDesc('Clickable ▶/▼ to fold/unfold sections.')
+        .addToggle(t => t.setValue(this.plugin.settings.gutterShowChevron).onChange(async v => { this.plugin.settings.gutterShowChevron = v; await this.plugin.saveSettings() }))
+      new Setting(containerEl).setName('Show word count on hover').setDesc('Tooltip with section word count and reading time.')
+        .addToggle(t => t.setValue(this.plugin.settings.gutterShowWordCount).onChange(async v => { this.plugin.settings.gutterShowWordCount = v; await this.plugin.saveSettings() }))
+    }
+
+    // ═══ SECTION STRIP ═══
+    sectionHeader(containerEl, 'appearance', 'Section Navigation Strip')
+    containerEl.createEl('p', { text: 'Breadcrumb trail, progress dots, and word count at the top of the editor.', cls: 'ah-settings-description' })
+    new Setting(containerEl).setName('Enable section strip').addToggle(t => t.setValue(this.plugin.settings.stripEnabled)
+      .onChange(async v => { this.plugin.settings.stripEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
+    if (this.plugin.settings.stripEnabled) {
+      new Setting(containerEl).setName('Show breadcrumb').setDesc('Heading hierarchy trail (e.g. Methods › Analysis).')
+        .addToggle(t => t.setValue(this.plugin.settings.stripShowBreadcrumb).onChange(async v => { this.plugin.settings.stripShowBreadcrumb = v; await this.plugin.saveSettings() }))
+      new Setting(containerEl).setName('Show progress dots').setDesc('Dot indicators for top-level sections.')
+        .addToggle(t => t.setValue(this.plugin.settings.stripShowProgress).onChange(async v => { this.plugin.settings.stripShowProgress = v; await this.plugin.saveSettings() }))
+      new Setting(containerEl).setName('Show word count').setDesc('Section and total word count with reading time.')
+        .addToggle(t => t.setValue(this.plugin.settings.stripShowWordCount).onChange(async v => { this.plugin.settings.stripShowWordCount = v; await this.plugin.saveSettings() }))
+      new Setting(containerEl).setName('Show navigation arrows').setDesc('Previous/next heading buttons.')
+        .addToggle(t => t.setValue(this.plugin.settings.stripShowNavArrows).onChange(async v => { this.plugin.settings.stripShowNavArrows = v; await this.plugin.saveSettings() }))
+    }
+
+    // ═══ HEADING TOOLBAR ═══
+    sectionHeader(containerEl, 'actions', 'Heading Inline Toolbar')
+    containerEl.createEl('p', { text: 'Action buttons that appear when cursor is on a heading line.', cls: 'ah-settings-description' })
+    new Setting(containerEl).setName('Enable heading toolbar').addToggle(t => t.setValue(this.plugin.settings.toolbarEnabled)
+      .onChange(async v => { this.plugin.settings.toolbarEnabled = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
+    if (this.plugin.settings.toolbarEnabled) {
+      new Setting(containerEl).setName('Show promote/demote buttons').setDesc('Change heading level with a click.')
+        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowPromote).onChange(async v => { this.plugin.settings.toolbarShowPromote = v; await this.plugin.saveSettings() }))
+      new Setting(containerEl).setName('Show copy link button').setDesc('Copy [[Note#Section]] link to clipboard.')
+        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowCopyLink).onChange(async v => { this.plugin.settings.toolbarShowCopyLink = v; await this.plugin.saveSettings() }))
+      new Setting(containerEl).setName('Show format button').setDesc('Convert heading text to Title Case.')
+        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowFormat).onChange(async v => { this.plugin.settings.toolbarShowFormat = v; await this.plugin.saveSettings() }))
+      new Setting(containerEl).setName('Show skip toggle').setDesc('Add/remove skip marker on heading.')
+        .addToggle(t => t.setValue(this.plugin.settings.toolbarShowSkip).onChange(async v => { this.plugin.settings.toolbarShowSkip = v; await this.plugin.saveSettings() }))
+    }
+
+    // ═══ FOLD CONTROLS ═══
+    sectionHeader(containerEl, 'actions', 'Fold Controls')
+    new Setting(containerEl).setName('Enable fold commands').setDesc('Fold/Unfold All commands in the command palette.')
+      .addToggle(t => t.setValue(this.plugin.settings.foldButtonsEnabled).onChange(async v => { this.plugin.settings.foldButtonsEnabled = v; await this.plugin.saveSettings() }))
     sectionHeader(containerEl, 'actions', 'Quick Actions — This Note Only')
     containerEl.createEl('p', { text: 'These buttons apply to the currently open note only. Use Ctrl+Z to undo.', cls: 'ah-settings-description' })
     new Setting(containerEl).setName('Apply heading numbers').setDesc('Write computed numbers into headings right now. Appears in TOC and exports.')
@@ -271,16 +320,22 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     containerEl.createEl('p', { text: 'Access these via Ctrl+P (Command Palette) or assign hotkeys above.', cls: 'ah-settings-description' })
     const cmdBox = containerEl.createEl('div', { cls: 'ah-settings-cmd-box' })
     const cmds: [string, string][] = [
-      ['Toggle heading numbers', 'Turn numbering on/off for the current note. If turning on in burn-in mode, numbers are written immediately.'],
-      ['Enable numbering for this note', 'Explicitly enable numbering for the current note, overriding scope rules.'],
-      ['Disable numbering for this note', 'Explicitly disable numbering. Numbers stay in file but stop auto-updating.'],
-      ['Burn in heading numbers', 'Write computed numbers into file text now. Same as the "Write Numbers to File" button.'],
-      ['Remove burned-in heading numbers', 'Strip all numbers and disable auto-numbering. Same as "Remove & Stop" button.'],
-      ['Force renumber all headings', 'Recalculate all numbers from scratch. Use after bulk edits or style changes.'],
-      ['Toggle skip for heading at cursor', 'Add/remove <!-- skip --> marker for the heading at cursor position.'],
-      ['Copy headings as numbered outline', 'Copy a numbered outline of all headings to clipboard.'],
-      ['Save settings to front matter', 'Write current numbering settings into the note\'s front matter for per-note persistence.'],
-      ['Quick configure numbering', 'Open a quick dialog to change numbering options for the current note.'],
+      ['Toggle heading numbers', 'Turn numbering on/off for the current note.'],
+      ['Enable/Disable numbering for this note', 'Override scope rules for the current note.'],
+      ['Burn in heading numbers', 'Write computed numbers into file text now.'],
+      ['Remove burned-in heading numbers', 'Strip all numbers and disable auto-numbering.'],
+      ['Force renumber all headings', 'Recalculate all numbers from scratch.'],
+      ['Toggle skip for heading at cursor', 'Add/remove <!-- skip --> marker.'],
+      ['Copy headings as numbered outline', 'Copy numbered outline to clipboard.'],
+      ['Navigate: next/previous heading', 'Jump to the next or previous heading.'],
+      ['Navigate: go to heading…', 'Fuzzy search picker to jump to any heading.'],
+      ['Copy link to current section', 'Copy [[Note#Section]] link to clipboard.'],
+      ['Fold/Unfold all headings', 'Fold or unfold all heading sections at once.'],
+      ['Promote/Demote heading', 'Change heading level (e.g. H3→H2 or H2→H3).'],
+      ['Format heading: Title Case', 'Convert heading text to Title Case.'],
+      ['Format heading: Sentence case', 'Convert heading text to Sentence case.'],
+      ['Quick configure numbering', 'Open a quick dialog to change numbering options.'],
+      ['Save settings to front matter', 'Write settings into the note\'s front matter.'],
     ]
     for (const [name, desc] of cmds) {
       const row = cmdBox.createEl('div', { cls: 'ah-cmd-row' })

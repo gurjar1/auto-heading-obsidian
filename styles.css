@@ -421,3 +421,407 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ─── Cluster A: Interactive Heading Gutter ───────────────── */
+
+.ah-heading-gutter {
+  width: 38px;
+  min-width: 38px;
+}
+
+.ah-gutter-marker {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  cursor: default;
+  height: 100%;
+  padding: 0 2px;
+}
+
+.ah-gutter-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  color: var(--text-faint);
+  transition: color 0.15s ease, background-color 0.15s ease;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.ah-gutter-chevron:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+
+.ah-gutter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 3px;
+  user-select: none;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+.ah-gutter-badge-1 { color: var(--text-accent); background: rgba(var(--color-accent-rgb, 124,77,255), 0.12); }
+.ah-gutter-badge-2 { color: var(--color-blue, #2196f3); background: rgba(33,150,243,0.10); }
+.ah-gutter-badge-3 { color: var(--color-green, #4caf50); background: rgba(76,175,80,0.10); }
+.ah-gutter-badge-4 { color: var(--color-orange, #ff9800); background: rgba(255,152,0,0.10); }
+.ah-gutter-badge-5 { color: var(--text-muted); background: var(--background-modifier-hover); }
+.ah-gutter-badge-6 { color: var(--text-faint); background: var(--background-modifier-hover); }
+
+/* ─── Cluster B: Section Navigation Strip ─────────────────── */
+
+.ah-section-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  user-select: none;
+  min-height: 26px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.ah-section-strip.ah-strip-hidden {
+  display: none;
+}
+
+.ah-strip-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ah-strip-crumb {
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: 3px;
+  padding: 1px 4px;
+  transition: color 0.12s, background 0.12s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.ah-strip-crumb:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.ah-strip-crumb-active {
+  color: var(--text-normal);
+  font-weight: 600;
+}
+
+.ah-strip-sep {
+  color: var(--text-faint);
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.ah-strip-progress {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ah-strip-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  opacity: 0.5;
+}
+
+.ah-strip-dot:hover {
+  transform: scale(1.4);
+  opacity: 0.8;
+}
+
+.ah-strip-dot-active {
+  background: var(--text-accent);
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+.ah-strip-nav {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ah-strip-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  transition: color 0.12s, background 0.12s;
+  line-height: 1;
+}
+
+.ah-strip-btn:hover:not(:disabled) {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.ah-strip-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.ah-strip-stats {
+  font-size: 10px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ─── Cluster C: Heading Inline Toolbar ───────────────────── */
+
+.ah-heading-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: 8px;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  vertical-align: middle;
+  pointer-events: auto;
+}
+
+/* Show toolbar when its parent line has focus */
+.cm-line:has(.ah-heading-toolbar) .ah-heading-toolbar,
+.ah-heading-toolbar:hover {
+  opacity: 1;
+}
+
+/* Fallback: always show with reduced opacity (for browsers without :has) */
+.ah-heading-toolbar {
+  opacity: 0.5;
+}
+
+@supports selector(:has(*)) {
+  .ah-heading-toolbar {
+    opacity: 0;
+  }
+}
+
+.ah-toolbar-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1;
+  transition: color 0.12s, background 0.12s;
+  font-family: var(--font-ui-small);
+  user-select: none;
+}
+
+.ah-toolbar-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.ah-toolbar-btn-active {
+  color: var(--text-accent);
+}
+
+.ah-toolbar-btn-success {
+  color: var(--color-green, #4caf50);
+}
+
+.ah-toolbar-skip-active {
+  color: var(--text-error);
+  text-decoration: line-through;
+}
+
+/* ─── Cluster D: Auto-TOC ─────────────────────────────────── */
+
+.ah-toc {
+  padding: 12px 16px;
+  margin: 8px 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+
+.ah-toc-title {
+  font-weight: 600;
+  font-size: var(--font-ui-medium);
+  color: var(--text-normal);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.ah-toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ah-toc-list .ah-toc-list {
+  margin-left: 18px;
+}
+
+.ah-toc-item {
+  padding: 2px 0;
+}
+
+.ah-toc-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 2px 4px;
+  transition: color 0.12s, background 0.12s;
+  display: inline-block;
+}
+
+.ah-toc-link:hover {
+  color: var(--text-accent);
+  background: var(--background-modifier-hover);
+}
+
+.ah-toc-number {
+  color: var(--text-faint);
+  margin-right: 4px;
+  font-size: 0.9em;
+}
+
+/* ─── Cluster E: Rich Status Bar Popover ──────────────────── */
+
+.ah-status-popover {
+  position: fixed;
+  z-index: var(--layer-popover, 100);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  min-width: 300px;
+  max-width: 420px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-size: var(--font-ui-smaller);
+}
+
+.ah-status-popover-header {
+  padding: 6px 14px 8px;
+  font-weight: 600;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  border-bottom: 1px solid var(--background-modifier-border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ah-status-popover-summary {
+  padding: 6px 14px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.ah-status-popover-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  cursor: pointer;
+  transition: background 0.12s;
+  color: var(--text-muted);
+}
+
+.ah-status-popover-row:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.ah-status-popover-num {
+  color: var(--text-faint);
+  min-width: 40px;
+  text-align: right;
+  font-size: 0.9em;
+  flex-shrink: 0;
+}
+
+.ah-status-popover-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-status-popover-words {
+  color: var(--text-faint);
+  font-size: 0.85em;
+  flex-shrink: 0;
+  text-align: right;
+  min-width: 50px;
+}
+
+/* ─── Cluster F: Fold Controls ────────────────────────────── */
+/* Uses Obsidian's built-in view-action button styling */
+
+/* ─── Per-Level Style Picker (in QuickConfigModal) ────────── */
+
+.ah-style-grid {
+  display: grid;
+  grid-template-columns: 40px 1fr 1fr;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.ah-style-grid-header {
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.ah-style-grid-level {
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.ah-style-grid-preview {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+}
