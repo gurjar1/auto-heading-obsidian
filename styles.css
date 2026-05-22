@@ -425,8 +425,8 @@
 /* ─── Cluster A: Interactive Heading Gutter ───────────────── */
 
 .ah-heading-gutter {
-  width: 38px;
-  min-width: 38px;
+  width: 24px;
+  min-width: 24px;
 }
 
 .ah-gutter-marker {
@@ -465,11 +465,18 @@
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
-  padding: 1px 3px;
+  padding: 2px 4px;
   border-radius: 3px;
   user-select: none;
   letter-spacing: -0.02em;
   flex-shrink: 0;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.ah-gutter-badge:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
 }
 
 .ah-gutter-badge-1 { color: var(--text-accent); background: rgba(var(--color-accent-rgb, 124,77,255), 0.12); }
@@ -486,8 +493,8 @@
   align-items: center;
   gap: 10px;
   padding: 4px 10px;
-  font-size: 11px;
-  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
   background: var(--background-secondary);
   border-bottom: 1px solid var(--background-modifier-border);
   user-select: none;
@@ -643,7 +650,7 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 2px 5px;
+  padding: 2px 8px;
   border-radius: 3px;
   font-size: 11px;
   line-height: 1;

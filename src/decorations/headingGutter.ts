@@ -8,13 +8,8 @@
 import { gutter, GutterMarker, EditorView } from '@codemirror/view'
 import { foldEffect, unfoldEffect, foldedRanges, syntaxTree } from '@codemirror/language'
 import type { Extension } from '@codemirror/state'
-import type { AutoHeadingSettings } from '../settings/settingsTypes'
-
-interface GutterSettingsProvider {
-  enabled: boolean
-  noteEnabled: boolean
-  settings: AutoHeadingSettings
-}
+import { MarkdownView } from 'obsidian'
+import type AutoHeadingPlugin from '../main'
 
 class HeadingGutterMarker extends GutterMarker {
   constructor(
@@ -23,6 +18,7 @@ class HeadingGutterMarker extends GutterMarker {
     readonly showChevron: boolean,
     readonly showBadge: boolean,
     readonly wordCount: number,
+    readonly getPlugin: () => AutoHeadingPlugin | null,
   ) { super() }
 
   eq(other: HeadingGutterMarker): boolean {
@@ -37,41 +33,31 @@ class HeadingGutterMarker extends GutterMarker {
     const readTime = Math.max(1, Math.ceil(this.wordCount / 238))
     container.title = `H${this.level} · ${this.wordCount}w · ~${readTime}min`
 
-    if (this.showChevron) {
-      const chevron = activeDocument.createElement('span')
-      chevron.className = 'ah-gutter-chevron'
-      chevron.textContent = this.isFolded ? '▶' : '▼'
-      chevron.addEventListener('mousedown', (e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        const pos = view.posAtDOM(container)
-        const line = view.state.doc.lineAt(pos)
-        const endLine = findSectionEnd(view, line.number, this.level)
-        const foldFrom = line.to
-        const foldTo = view.state.doc.line(endLine).to
-
-        if (foldFrom >= foldTo) return
-
-        if (this.isFolded) {
-          const folded = foldedRanges(view.state)
-          let found = false
-          folded.between(line.from, line.to + 1, (from, to) => {
-            if (!found) {
-              view.dispatch({ effects: unfoldEffect.of({ from, to }) })
-              found = true
-            }
-          })
-        } else {
-          view.dispatch({ effects: foldEffect.of({ from: foldFrom, to: foldTo }) })
-        }
-      })
-      container.appendChild(chevron)
-    }
-
     if (this.showBadge) {
       const badge = activeDocument.createElement('span')
       badge.className = `ah-gutter-badge ah-gutter-badge-${this.level}`
       badge.textContent = `H${this.level}`
+      
+      // Merge fold interaction into the badge
+      badge.addEventListener('mousedown', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const plugin = this.getPlugin()
+        if (!plugin) return
+        const mdView = plugin.app.workspace.getActiveViewOfType(MarkdownView)
+        if (!mdView) return
+
+        const pos = view.posAtDOM(container)
+        const line = view.state.doc.lineAt(pos)
+        const lineNo = line.number - 1
+
+        if (this.isFolded) {
+          mdView.editor.unfold(lineNo)
+        } else {
+          mdView.editor.fold(lineNo)
+        }
+      })
+      
       container.appendChild(badge)
     }
 
@@ -96,13 +82,15 @@ function countWords(text: string): number {
   return t.length === 0 ? 0 : t.split(/\s+/).length
 }
 
-export function createHeadingGutter(getSettings: () => GutterSettingsProvider): Extension {
+export function createHeadingGutter(getPlugin: () => AutoHeadingPlugin | null): Extension {
   return gutter({
     class: 'ah-heading-gutter',
     lineMarker(view, line) {
-      const s = getSettings()
-      if (!s.enabled || !s.noteEnabled) return null
-      if (!s.settings.gutterEnabled) return null
+      const plugin = getPlugin()
+      if (!plugin || !plugin.settings.enabled) return null
+      const fileName = plugin.app.workspace.getActiveFile()?.path
+      if (fileName && !plugin.getPerNoteEnabled(fileName)) return null
+      if (!plugin.settings.gutterEnabled) return null
 
       const text = view.state.doc.lineAt(line.from).text
       const m = text.match(/^\s{0,3}(#{1,6})\s/)
@@ -112,8 +100,8 @@ export function createHeadingGutter(getSettings: () => GutterSettingsProvider): 
       if (!node.name.includes("header") && !node.name.includes("Heading")) return null
 
       const level = m[1].length
-      const showBadge = s.settings.gutterShowBadge
-      const showChevron = s.settings.gutterShowChevron
+      const showBadge = plugin.settings.gutterShowBadge
+      const showChevron = plugin.settings.gutterShowChevron
       const doc = view.state.doc
       const lineObj = view.state.doc.lineAt(line.from)
 
@@ -132,9 +120,9 @@ export function createHeadingGutter(getSettings: () => GutterSettingsProvider): 
         }
       }
       const sectionText = nextHeadingFrom > lineObj.to ? doc.sliceString(lineObj.to + 1, nextHeadingFrom) : ''
-      const wc = s.settings.gutterShowWordCount ? countWords(sectionText) : 0
+      const wc = plugin.settings.gutterShowWordCount ? countWords(sectionText) : 0
 
-      return new HeadingGutterMarker(level, isFolded, showChevron, showBadge, wc)
+      return new HeadingGutterMarker(level, isFolded, showChevron, showBadge, wc, getPlugin)
     },
     lineMarkerChange(update) {
       return update.docChanged || update.selectionSet || update.viewportChanged

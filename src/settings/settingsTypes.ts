@@ -135,11 +135,11 @@ export const DEFAULT_SETTINGS: Readonly<AutoHeadingSettings> = {
   // Heading Gutter defaults
   gutterEnabled: true,
   gutterShowBadge: true,
-  gutterShowChevron: true,
+  gutterShowChevron: false,
   gutterShowWordCount: true,
 
   // Section Strip defaults
-  stripEnabled: true,
+  stripEnabled: false,
   stripShowBreadcrumb: true,
   stripShowProgress: true,
   stripShowWordCount: true,

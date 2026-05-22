@@ -51,7 +51,7 @@ export default class AutoHeadingPlugin extends Plugin {
 
     // Feature extensions: Gutter, Toolbar, Section Strip
     this.registerEditorExtension([
-      createHeadingGutter(() => getGutterSettings()),
+      createHeadingGutter(() => this as AutoHeadingPlugin),
       createHeadingToolbar(() => this as AutoHeadingPlugin),
       createSectionStrip(() => this as AutoHeadingPlugin),
     ])
