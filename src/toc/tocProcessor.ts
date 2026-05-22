@@ -111,44 +111,29 @@ export function registerTocProcessor(plugin: AutoHeadingPlugin): void {
 
   const processor = async (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
     await renderToc(plugin, source, el, ctx)
-
-    // Track this TOC element for live refresh
-    const entry = { el, source, ctx }
-    activeTocEntries.push(entry)
-
-    // Clean up when element is removed from DOM
-    const observer = new MutationObserver(() => {
-      if (!el.isConnected) {
-        const idx = activeTocEntries.indexOf(entry)
-        if (idx >= 0) activeTocEntries.splice(idx, 1)
-        observer.disconnect()
-      }
-    })
-    // Observe the parent for childList changes to detect removal
-    if (el.parentElement) {
-      observer.observe(el.parentElement, { childList: true, subtree: true })
-    }
+    activeTocEntries.push({ el, source, ctx })
   }
 
   plugin.registerMarkdownCodeBlockProcessor('toc', processor)
   plugin.registerMarkdownCodeBlockProcessor('ah-toc', processor)
 
-  // Debounced refresh to avoid hammering on rapid edits (300ms)
+  // Debounced refresh (300ms). Also prunes disconnected entries.
   const debouncedRefresh = debounce((filePath: string) => {
+    // Prune stale entries first
+    for (let i = activeTocEntries.length - 1; i >= 0; i--) {
+      if (!activeTocEntries[i].el.isConnected) activeTocEntries.splice(i, 1)
+    }
     for (const entry of activeTocEntries) {
-      if (entry.ctx.sourcePath === filePath && entry.el.isConnected) {
+      if (entry.ctx.sourcePath === filePath) {
         entry.el.empty()
         renderToc(plugin, entry.source, entry.el, entry.ctx)
       }
     }
   }, 300, true)
 
-  // Live refresh: re-render all visible TOC blocks when metadata changes
   plugin.registerEvent(
     plugin.app.metadataCache.on('changed', (file: TFile) => {
-      // Only refresh if there are active TOC entries for this file
-      const hasEntries = activeTocEntries.some(e => e.ctx.sourcePath === file.path && e.el.isConnected)
-      if (!hasEntries) return
+      if (activeTocEntries.length === 0) return
       debouncedRefresh(file.path)
     })
   )
