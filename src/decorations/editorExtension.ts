@@ -138,7 +138,7 @@ interface LineDecoInfo {
   level: number
 }
 
-function buildDecorations(state: EditorState): DecorationSet {
+function buildDecorations(state: EditorState, cursorLine?: number): DecorationSet {
   lastBuiltNumberVersion = settingsVersion
 
   if (!noteEnabled || !currentSettings.enabled) {
@@ -164,6 +164,9 @@ function buildDecorations(state: EditorState): DecorationSet {
 
   for (const heading of headings) {
     const { level, headingText, textFrom, detected } = heading
+
+    // Skip decorations on the line the cursor is on to prevent cursor jumps
+    if (cursorLine != null && heading.lineNumber === cursorLine) continue
 
     const isSkippedH1 = currentSettings.skipH1 && level === 1
     const isBelowFirst = level < effectiveFirstLevel
@@ -304,14 +307,18 @@ function buildLineDecorations(state: EditorState): DecorationSet {
 
 // ─── StateField Definition ────────────────────────────────────────────
 
+function getCursorLine(state: EditorState): number {
+  return state.doc.lineAt(state.selection.main.head).number - 1
+}
+
 export const headingNumberField = StateField.define<DecorationSet>({
   create(state: EditorState): DecorationSet {
-    return buildDecorations(state)
+    return buildDecorations(state, getCursorLine(state))
   },
 
   update(value: DecorationSet, tr: Transaction): DecorationSet {
-    if (tr.docChanged) return buildDecorations(tr.state)
-    if (lastBuiltNumberVersion !== settingsVersion) return buildDecorations(tr.state)
+    if (tr.docChanged || tr.selection) return buildDecorations(tr.state, getCursorLine(tr.state))
+    if (lastBuiltNumberVersion !== settingsVersion) return buildDecorations(tr.state, getCursorLine(tr.state))
     return value
   },
 
