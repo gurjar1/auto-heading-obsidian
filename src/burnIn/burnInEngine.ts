@@ -62,7 +62,7 @@ export function stripPluginNumber(afterHash: string): string | null {
 // Strict Roman numeral patterns (reject "dim", "mild", "civil", etc.)
 const ROMAN_UPPER = 'M{0,3}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})'
 const ROMAN_LOWER = 'm{0,3}(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})'
-const SEG = `(?:\\d+|[A-Z]{1,2}|(?:${ROMAN_UPPER})|(?:${ROMAN_LOWER})|[a-z]{1,2})`
+const SEG = `(?:[\\d٠-٩]+|[A-Z]{1,2}|(?:${ROMAN_UPPER})|(?:${ROMAN_LOWER})|[a-z]{1,2})`
 
 function buildLegacyFallbackRegex(formattedNumber: string, levelSeparator: string): RegExp {
   const sep = escapeRegex(levelSeparator || '.')

@@ -317,7 +317,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
             .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
             .trim()
           // Remove any auto-number prefix (contains U+2060 marker)
-          headingText = headingText.replace(/^[\u2060\d.A-Za-z()]+[\s.:\-—)]+\s*/, '')
+          headingText = headingText.replace(/^[\u2060\d٠-٩.A-Za-z()]+[\s.:\-—)]+\s*/, '')
           const fileName = view.file?.basename || ''
           const link = `[[${fileName}#${headingText}]]`
           void navigator.clipboard.writeText(link)
