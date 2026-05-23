@@ -8,7 +8,7 @@
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
-import { Notice, TFile } from 'obsidian'
+import { Notice } from 'obsidian'
 import type AutoHeadingPlugin from '../main'
 
 interface SimpleHeading {

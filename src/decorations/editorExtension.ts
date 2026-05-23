@@ -68,18 +68,24 @@ interface DocHeading {
 }
 
 /**
- * Extract headings by scanning document text line by line.
+ * Extract headings in a single pass (merged code-block detection).
  */
 function extractHeadingsFromDoc(state: EditorState): DocHeading[] {
   const headings: DocHeading[] = []
   const doc = state.doc
-  const codeLines = getCodeBlockLines(state)
+  let insideCodeBlock = false
 
   for (let i = 1; i <= doc.lines; i++) {
-    if (codeLines.has(i - 1)) continue // skip code block lines
-
     const line = doc.line(i)
     const text = line.text
+    const trimmed = text.trimStart()
+
+    // Track code fences
+    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+      insideCodeBlock = !insideCodeBlock
+      continue
+    }
+    if (insideCodeBlock) continue
 
     const match = text.match(/^(\s{0,3})(#{1,6})\s+(.+)/)
     if (!match) continue
@@ -90,7 +96,6 @@ function extractHeadingsFromDoc(state: EditorState): DocHeading[] {
     const prefixLen = match[1].length + hashes.length + 1
     const textFrom = line.from + prefixLen
 
-    // Detect manual numbers in the content
     const detected = currentSettings.detectManualNumbers
       ? detectManualNumber(content)
       : null
@@ -107,20 +112,20 @@ function extractHeadingsFromDoc(state: EditorState): DocHeading[] {
   return headings
 }
 
-function getCodeBlockLines(state: EditorState): Set<number> {
-  const codeLines = new Set<number>()
-  const doc = state.doc
-  let insideCodeBlock = false
-  for (let i = 1; i <= doc.lines; i++) {
-    const text = doc.line(i).text.trimStart()
-    if (text.startsWith('```') || text.startsWith('~~~')) {
-      codeLines.add(i - 1)
-      insideCodeBlock = !insideCodeBlock
-      continue
-    }
-    if (insideCodeBlock) codeLines.add(i - 1)
-  }
-  return codeLines
+// ─── Heading Cache (shared between number and indent fields) ──────────
+
+let cachedDocLen = -1
+let cachedDocLines = -1
+let cachedHeadings: DocHeading[] = []
+
+function getHeadingsCached(state: EditorState): DocHeading[] {
+  const len = state.doc.length
+  const lines = state.doc.lines
+  if (len === cachedDocLen && lines === cachedDocLines) return cachedHeadings
+  cachedDocLen = len
+  cachedDocLines = lines
+  cachedHeadings = extractHeadingsFromDoc(state)
+  return cachedHeadings
 }
 
 // ─── Decoration Builder ───────────────────────────────────────────────
@@ -145,7 +150,7 @@ function buildDecorations(state: EditorState, cursorLine?: number): DecorationSe
     return Decoration.none
   }
 
-  const headings = extractHeadingsFromDoc(state)
+  const headings = getHeadingsCached(state)
   if (headings.length === 0) return Decoration.none
 
   const effectiveFirstLevel = currentSettings.skipH1
@@ -164,9 +169,6 @@ function buildDecorations(state: EditorState, cursorLine?: number): DecorationSe
 
   for (const heading of headings) {
     const { level, headingText, textFrom, detected } = heading
-
-    // Skip decorations on the line the cursor is on to prevent cursor jumps
-    if (cursorLine != null && heading.lineNumber === cursorLine) continue
 
     const isSkippedH1 = currentSettings.skipH1 && level === 1
     const isBelowFirst = level < effectiveFirstLevel
@@ -187,7 +189,7 @@ function buildDecorations(state: EditorState, cursorLine?: number): DecorationSe
       continue
     }
 
-    // Compute number
+    // Compute number (always, even for cursor line, so downstream numbers stay correct)
     if (numberingStack.length === 0) {
       const style = getStyleForLevel(level)
       const initial = startAtToken(currentSettings.startAt, style)
@@ -216,13 +218,14 @@ function buildDecorations(state: EditorState, cursorLine?: number): DecorationSe
 
     previousLevel = level
 
+    // Skip DECORATION (not numbering) on the cursor line to prevent cursor jumps
+    if (cursorLine != null && heading.lineNumber === cursorLine) continue
+
     const numberStr = makeNumberingString(numberingStack, currentSettings.levelSeparator)
     const formatted = currentSettings.numberFormat.replace('{n}', numberStr)
     const displayText = formatted + currentSettings.separator + ' '
 
     if (detected) {
-      // Manual number found → visually REPLACE it with the computed number
-      // This handles both correct and incorrect manual numbers
       decorationInfo.push({
         from: textFrom,
         to: textFrom + detected.fullMatch.length,
@@ -231,7 +234,6 @@ function buildDecorations(state: EditorState, cursorLine?: number): DecorationSe
         type: 'replace',
       })
     } else {
-      // No manual number → add widget before heading text
       decorationInfo.push({
         from: textFrom,
         to: textFrom,
@@ -244,7 +246,6 @@ function buildDecorations(state: EditorState, cursorLine?: number): DecorationSe
 
   if (decorationInfo.length === 0) return Decoration.none
 
-  // Sort by position (required by RangeSetBuilder)
   decorationInfo.sort((a, b) => a.from - b.from)
 
   const builder = new RangeSetBuilder<Decoration>()
@@ -266,7 +267,6 @@ function buildDecorations(state: EditorState, cursorLine?: number): DecorationSe
 
 /**
  * Build line-level decorations for heading indentation.
- * Applies CSS classes like 'ah-indent-2', 'ah-indent-guide' to heading lines.
  */
 function buildLineDecorations(state: EditorState): DecorationSet {
   lastBuiltIndentVersion = settingsVersion
@@ -274,7 +274,7 @@ function buildLineDecorations(state: EditorState): DecorationSet {
     return Decoration.none
   }
 
-  const headings = extractHeadingsFromDoc(state)
+  const headings = getHeadingsCached(state)
   if (headings.length === 0) return Decoration.none
 
   const lineDecos: LineDecoInfo[] = []
@@ -286,7 +286,6 @@ function buildLineDecorations(state: EditorState): DecorationSet {
 
   if (lineDecos.length === 0) return Decoration.none
 
-  // Sort by position (required by RangeSetBuilder)
   lineDecos.sort((a, b) => a.lineFrom - b.lineFrom)
 
   const builder = new RangeSetBuilder<Decoration>()
@@ -311,14 +310,34 @@ function getCursorLine(state: EditorState): number {
   return state.doc.lineAt(state.selection.main.head).number - 1
 }
 
+/** Track the last cursor line to avoid unnecessary rebuilds on horizontal movement */
+let lastCursorLine = -1
+
 export const headingNumberField = StateField.define<DecorationSet>({
   create(state: EditorState): DecorationSet {
-    return buildDecorations(state, getCursorLine(state))
+    lastCursorLine = getCursorLine(state)
+    return buildDecorations(state, lastCursorLine)
   },
 
   update(value: DecorationSet, tr: Transaction): DecorationSet {
-    if (tr.docChanged || tr.selection) return buildDecorations(tr.state, getCursorLine(tr.state))
-    if (lastBuiltNumberVersion !== settingsVersion) return buildDecorations(tr.state, getCursorLine(tr.state))
+    const newCursorLine = getCursorLine(tr.state)
+
+    if (tr.docChanged) {
+      // Invalidate heading cache on doc change
+      cachedDocLen = -1
+      lastCursorLine = newCursorLine
+      return buildDecorations(tr.state, newCursorLine)
+    }
+
+    if (tr.selection && newCursorLine !== lastCursorLine) {
+      lastCursorLine = newCursorLine
+      return buildDecorations(tr.state, newCursorLine)
+    }
+
+    if (lastBuiltNumberVersion !== settingsVersion) {
+      return buildDecorations(tr.state, newCursorLine)
+    }
+
     return value
   },
 
@@ -347,9 +366,6 @@ export function getEditorExtensions() {
   return [
     headingNumberField,
     headingIndentField,
-    // Treat replace decoration ranges as atomic units for cursor movement.
-    // This prevents the cursor from entering replaced number ranges,
-    // eliminating cursor confusion during decoration rebuilds.
     EditorView.atomicRanges.of(view => view.state.field(headingNumberField)),
   ]
 }
