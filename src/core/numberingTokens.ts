@@ -3,7 +3,8 @@
  *
  * Defines the types and arithmetic for heading number tokens.
  * Supports Arabic (1,2,3), uppercase/lowercase letters (A,B,C / a,b,c),
- * and uppercase/lowercase Roman numerals (I,II,III / i,ii,iii).
+ * uppercase/lowercase Roman numerals (I,II,III / i,ii,iii),
+ * and Eastern Arabic numerals (١,٢,٣).
  */
 
 // ─── Roman Numeral Helpers (self-contained, no external dependency) ───
@@ -43,7 +44,7 @@ export function fromRoman(roman: string): number {
 // ─── Numbering Styles ─────────────────────────────────────────────────
 
 /** All supported numbering styles */
-export type NumberingStyle = '1' | 'A' | 'a' | 'I' | 'i'
+export type NumberingStyle = '1' | 'A' | 'a' | 'I' | 'i' | '١'
 
 /** A single numbering token with its style and value */
 export type NumberingToken = {
@@ -53,7 +54,24 @@ export type NumberingToken = {
 
 /** Check if a string is a valid numbering style */
 export function isValidNumberingStyle(s: string): s is NumberingStyle {
-  return s === '1' || s === 'A' || s === 'a' || s === 'I' || s === 'i'
+  return s === '1' || s === 'A' || s === 'a' || s === 'I' || s === 'i' || s === '١'
+}
+
+// ─── Eastern Arabic Numeral Helpers ───────────────────────────────────
+
+/** Eastern Arabic digit mapping (Western 0-9 → Eastern ٠-٩) */
+const EASTERN_ARABIC_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'] as const
+
+/** Convert a Western Arabic number string to Eastern Arabic numerals */
+export function toEasternArabic(num: number): string {
+  return num.toString().replace(/[0-9]/g, d => EASTERN_ARABIC_DIGITS[parseInt(d)])
+}
+
+/** Convert an Eastern Arabic numeral string back to a Western number */
+export function fromEasternArabic(eastern: string): number {
+  const western = eastern.replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+  const n = parseInt(western, 10)
+  return isNaN(n) ? 0 : n
 }
 
 // ─── Token Display ────────────────────────────────────────────────────
@@ -71,6 +89,8 @@ export function tokenToString(token: NumberingToken): string {
       return toRoman(token.value)
     case 'i':
       return toRoman(token.value).toLowerCase()
+    case '١':
+      return toEasternArabic(token.value)
   }
 }
 
@@ -147,6 +167,15 @@ function parseStartAt(startAt: string, style: NumberingStyle): number {
         return val > 0 ? val : 1
       }
       return 1
+    }
+    case '١': {
+      // Accept both Eastern Arabic numerals and Western digits
+      if (/^[٠-٩]+$/.test(trimmed)) {
+        const val = fromEasternArabic(trimmed)
+        return val > 0 ? val : 1
+      }
+      const n = parseInt(trimmed, 10)
+      return isNaN(n) || n < 1 ? 1 : n
     }
   }
 }

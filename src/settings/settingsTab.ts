@@ -165,6 +165,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     const styleOpts: Record<NumberingStyle, string> = {
       '1': 'Arabic (1, 2, 3)', 'A': 'Upper (A, B, C)', 'a': 'Lower (a, b, c)',
       'I': 'Roman (I, II, III)', 'i': 'Roman (i, ii, iii)',
+      '١': 'Eastern Arabic (١, ٢, ٣)',
     }
     for (let level = 1; level <= 6; level++) {
       const i = level - 1
@@ -407,6 +408,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
       ['auto-heading: auto, skip-h1', 'Enable + skip H1 headings'],
       ['auto-heading: auto, first-level 2, max 4', 'Custom level range'],
       ['auto-heading: auto, start-at 3', 'Start numbering from 3'],
+      ['auto-heading: auto, style ١', 'Use Eastern Arabic numerals (١, ٢, ٣)'],
       ['auto-heading: auto, indent', 'Enable visual heading indentation'],
       ['auto-heading: auto, indent, indent-size 24', 'Indent with custom size'],
       ['<!-- skip --> after a heading', 'Skip numbering for that heading'],

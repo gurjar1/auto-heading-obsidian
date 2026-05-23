@@ -96,9 +96,9 @@ export class QuickConfigModal extends Modal {
 
     const styleLabels: Record<string, string> = {
       '1': '1 (Arabic)', 'A': 'A (Upper)', 'a': 'a (Lower)',
-      'I': 'I (Roman)', 'i': 'i (roman)',
+      'I': 'I (Roman)', 'i': 'i (roman)', '١': '١ (Eastern Arabic)',
     }
-    const styleOptions = ['1', 'A', 'a', 'I', 'i']
+    const styleOptions = ['1', 'A', 'a', 'I', 'i', '١']
 
     for (let lvl = 0; lvl < 6; lvl++) {
       new Setting(styleSection)
@@ -174,7 +174,7 @@ export class QuickConfigModal extends Modal {
   private getStylePreview(): string {
     const styles = this.plugin.settings.levelStyles
     const sep = this.plugin.settings.levelSeparator || '.'
-    const samples: Record<string, string> = { '1': '1', 'A': 'A', 'a': 'a', 'I': 'I', 'i': 'i' }
+    const samples: Record<string, string> = { '1': '1', 'A': 'A', 'a': 'a', 'I': 'I', 'i': 'i', '١': '١' }
     return `Preview: ${styles.slice(0, 4).map(s => samples[s] || '1').join(sep)}`
   }
 }
