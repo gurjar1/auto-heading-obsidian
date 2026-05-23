@@ -8,6 +8,7 @@
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
+import { Notice, TFile } from 'obsidian'
 import type AutoHeadingPlugin from '../main'
 
 interface SimpleHeading {
@@ -74,6 +75,16 @@ class SectionStripView {
     this.nextBtn.addEventListener('click', () => this.navigateNext())
     this.navEl.appendChild(this.nextBtn)
 
+    // TOC toggle button
+    const tocBtn = activeDocument.createElement('button')
+    tocBtn.className = 'ah-strip-btn ah-strip-toc-btn'
+    tocBtn.textContent = '☰'
+    tocBtn.title = 'Toggle Table of Contents'
+    tocBtn.addEventListener('click', () => this.toggleToc())
+    this.navEl.appendChild(tocBtn)
+
+    // Remove any existing strips to prevent duplicates on plugin recreation
+    view.dom.querySelectorAll('.ah-section-strip').forEach(el => el.remove())
     view.dom.insertBefore(this.el, view.dom.firstChild)
 
     this.scrollHandler = () => {
@@ -187,5 +198,30 @@ class SectionStripView {
   private jumpTo(pos: number): void {
     this.view.dispatch({ selection: { anchor: pos }, scrollIntoView: true })
     this.view.focus()
+  }
+
+  private toggleToc(): void {
+    const plugin = this.getPlugin()
+    if (!plugin) return
+    const file = plugin.app.workspace.getActiveFile()
+    if (!file) { new Notice('No active note.'); return }
+
+    plugin.app.vault.process(file, (content) => {
+      const tocRegex = /```(?:toc|ah-toc)\s*\n[\s\S]*?```\s*\n?\n?/m
+      const match = content.match(tocRegex)
+      if (match && match.index != null) {
+        new Notice('Auto Heading: TOC removed.')
+        return content.substring(0, match.index) + content.substring(match.index + match[0].length)
+      } else {
+        const tocBlock = '```toc\ntitle: Table of Contents\nstyle: numbered\nlevel: 1-6\n```\n\n'
+        let idx = 0
+        if (content.startsWith('---')) {
+          const fmEnd = content.indexOf('\n---', 3)
+          if (fmEnd >= 0) { idx = fmEnd + 4; if (content[idx] === '\n') idx++ }
+        }
+        new Notice('Auto Heading: TOC inserted.')
+        return content.substring(0, idx) + tocBlock + content.substring(idx)
+      }
+    })
   }
 }

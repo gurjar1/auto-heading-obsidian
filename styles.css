@@ -584,6 +584,13 @@
   cursor: default;
 }
 
+.ah-strip-toc-btn {
+  margin-left: 4px;
+  padding-left: 8px;
+  border-left: 1px solid var(--background-modifier-border);
+  font-size: 12px;
+}
+
 
 /* ─── Cluster C: Heading Inline Toolbar ───────────────────── */
 

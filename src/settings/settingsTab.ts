@@ -336,10 +336,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName('Remove heading numbers').setDesc('Strip all numbers from headings and pause auto-numbering for this note.')
       .addButton(b => b.setButtonText('Remove & Stop').setWarning().onClick(() => this.doRemoveNumbers()))
     new Setting(containerEl).setName('Insert / Remove Table of Contents').setDesc('Toggle a ```toc block at the top of the current note.')
-      .addButton(b => b.setButtonText('Toggle TOC').onClick(() => {
-        const toggleCmd = (this.app as any).commands?.executeCommandById('auto-heading-obsidian:toggle-toc-block')
-        if (!toggleCmd) new Notice('Please open a note first to toggle TOC.')
-      }))
+      .addButton(b => b.setButtonText('Toggle TOC').onClick(() => this.doToggleToc()))
 
     // ═══ ADVANCED ═══
     sectionHeader(containerEl, 'advanced', 'Advanced')
@@ -422,7 +419,9 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
 
     // Restore scroll position if this was a rebuild (not a fresh open)
     if (restorePos != null && scrollEl) {
-      scrollEl.scrollTop = restorePos
+      const el = scrollEl
+      const pos = restorePos
+      requestAnimationFrame(() => { el.scrollTop = pos })
     }
   }
 
@@ -500,5 +499,36 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     this.plugin.setPerNoteEnabled(view.file.path, false)
     this.plugin.refreshDecorations()
     new Notice(`Auto Heading: ${r.message}\nAuto-numbering disabled for this note.`)
+  }
+
+  private async doToggleToc(): Promise<void> {
+    // Find the active markdown file even when settings panel is focused
+    const file = this.plugin.app.workspace.getActiveFile()
+    if (!file) { new Notice('Open a note first.'); return }
+
+    await this.plugin.app.vault.process(file, (content) => {
+      const tocRegex = /```(?:toc|ah-toc)\s*\n[\s\S]*?```\s*\n?\n?/m
+      const match = content.match(tocRegex)
+
+      if (match && match.index != null) {
+        // Remove existing TOC block
+        const result = content.substring(0, match.index) + content.substring(match.index + match[0].length)
+        new Notice('Auto Heading: TOC block removed.')
+        return result
+      } else {
+        // Insert TOC after front matter or at the top
+        const tocBlock = '```toc\ntitle: Table of Contents\nstyle: numbered\nlevel: 1-6\n```\n\n'
+        let insertIdx = 0
+        if (content.startsWith('---')) {
+          const fmEnd = content.indexOf('\n---', 3)
+          if (fmEnd >= 0) {
+            insertIdx = fmEnd + 4 // after closing ---
+            if (content[insertIdx] === '\n') insertIdx++
+          }
+        }
+        new Notice('Auto Heading: TOC block inserted.')
+        return content.substring(0, insertIdx) + tocBlock + content.substring(insertIdx)
+      }
+    })
   }
 }
