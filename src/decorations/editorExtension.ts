@@ -304,6 +304,38 @@ function buildLineDecorations(state: EditorState): DecorationSet {
   return builder.finish()
 }
 
+// ─── Structural Change Detection ──────────────────────────────────────
+
+/** Extract heading level from a line of text (0 if not a heading) */
+function getHeadingLevel(lineText: string): number {
+  const m = lineText.match(/^\s{0,3}(#{1,6})\s/)
+  return m ? m[1].length : 0
+}
+
+/**
+ * Determine if a document change requires a full decoration rebuild.
+ *
+ * Returns true when heading structure changes (lines added/removed,
+ * heading level changed, line became/stopped being a heading).
+ * Returns false for simple inline edits (typing inside heading text)
+ * where mapping existing decorations is sufficient.
+ */
+function needsFullRebuild(tr: Transaction): boolean {
+  // Line count changed → heading may have been added or removed
+  if (tr.state.doc.lines !== tr.startState.doc.lines) return true
+
+  // Check if any edited line's heading status or level changed
+  let rebuild = false
+  tr.changes.iterChangedRanges((fromA, _toA, fromB, _toB) => {
+    if (rebuild) return
+    const oldLevel = getHeadingLevel(tr.startState.doc.lineAt(fromA).text)
+    const newLevel = getHeadingLevel(tr.state.doc.lineAt(fromB).text)
+    if (oldLevel !== newLevel) rebuild = true
+  })
+
+  return rebuild
+}
+
 // ─── StateField Definition ────────────────────────────────────────────
 
 function getCursorLine(state: EditorState): number {
@@ -325,6 +357,17 @@ export const headingNumberField = StateField.define<DecorationSet>({
     if (tr.docChanged) {
       // Invalidate heading cache on doc change
       cachedDocLen = -1
+
+      // ── Fast path: map instead of rebuild ──
+      // When cursor stays on the same line and the heading structure hasn't
+      // changed (no headings added/removed, no level changes), we map existing
+      // decorations through the change instead of rebuilding from scratch.
+      // This adjusts positions with zero DOM churn, preventing cursor jumps
+      // that occur when CM6 reconciles a fully-rebuilt DecorationSet.
+      if (newCursorLine === lastCursorLine && !needsFullRebuild(tr)) {
+        return value.map(tr.changes)
+      }
+
       lastCursorLine = newCursorLine
       return buildDecorations(tr.state, newCursorLine)
     }
@@ -352,7 +395,11 @@ export const headingIndentField = StateField.define<DecorationSet>({
   },
 
   update(value: DecorationSet, tr: Transaction): DecorationSet {
-    if (tr.docChanged) return buildLineDecorations(tr.state)
+    if (tr.docChanged) {
+      // Same fast path: map for non-structural edits
+      if (!needsFullRebuild(tr)) return value.map(tr.changes)
+      return buildLineDecorations(tr.state)
+    }
     if (lastBuiltIndentVersion !== settingsVersion) return buildLineDecorations(tr.state)
     return value
   },
