@@ -6,7 +6,7 @@ Automatic heading numbering for Obsidian. Numbers your headings in real time and
 
 - Auto-number headings in real time and write numbers directly into your Markdown files
 - Numbers appear in the sidebar TOC, PDF exports, and Obsidian Publish
-- Support for Arabic digits, uppercase and lowercase letters, and Roman numerals at every heading level
+- Support for Arabic digits, Eastern Arabic numerals (٠-٩), uppercase and lowercase letters, and Roman numerals at every heading level
 - Mix numbering styles freely across levels (e.g., `1.A.a.I.i.1`)
 - Visual heading indentation that creates a tree-like outline in your editor
 - Visual-only mode that overlays numbers without modifying files
@@ -62,6 +62,7 @@ Each heading level can use a different style:
 | Style | Example output |
 |-------|---------------|
 | Arabic | 1, 2, 3 |
+| Eastern Arabic | ١, ٢, ٣ |
 | Upper letter | A, B, C |
 | Lower letter | a, b, c |
 | Upper Roman | I, II, III |
@@ -112,10 +113,10 @@ The plugin includes several interactive visual elements to help you navigate and
 
 ## Table of Contents
 
-You can insert an auto-updating Table of Contents anywhere in your document by creating a code block with the language `ah-toc`:
+You can insert an auto-updating Table of Contents anywhere in your document by creating a code block with the language `toc` or `ah-toc`:
 
 ```text
-` ` `ah-toc
+` ` `toc
 ` ` `
 ```
 *(Remove spaces between backticks)*
