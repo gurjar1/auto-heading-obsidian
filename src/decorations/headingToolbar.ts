@@ -55,6 +55,8 @@ class HeadingToolbarWidget extends WidgetType {
     const showFormat = !settings || (settings as any).toolbarShowFormat !== false
     const showSkip = !settings || (settings as any).toolbarShowSkip !== false
 
+    const showExtract = !settings || (settings as any).toolbarShowExtract !== false
+
     const makeBtn = (text: string, title: string, cls: string, handler: () => void) => {
       const btn = activeDocument.createElement('button')
       btn.className = `ah-toolbar-btn ${cls}`
@@ -85,7 +87,7 @@ class HeadingToolbarWidget extends WidgetType {
         let headingText = this.lineText.replace(/^\s{0,3}#{1,6}\s+/, '')
           .replace(/\s*<!--\s*(?:skip|no-number|ah-skip|skip-number)\s*-->\s*/g, '')
           .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
-          .replace(/^[\u2060\d.A-Za-z()]+[\s.:\-—)]+\s*/, '')
+          .replace(/\u2060/g, '')
           .trim()
         const fileName = plugin?.app.workspace.getActiveFile()?.basename || ''
         void navigator.clipboard.writeText(`[[${fileName}#${headingText}]]`)
@@ -119,6 +121,12 @@ class HeadingToolbarWidget extends WidgetType {
           view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: newText } })
         })
       div.appendChild(skipBtn)
+    }
+
+    if (showExtract && plugin) {
+      div.appendChild(makeBtn('📤', 'Extract section to new note', '', () => {
+        ;(plugin.app as any).commands.executeCommandById('auto-heading:extract-section')
+      }))
     }
 
     return div

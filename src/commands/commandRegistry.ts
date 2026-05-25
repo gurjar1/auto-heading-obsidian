@@ -13,6 +13,7 @@ import { QuickConfigModal } from '../settings/quickConfigModal'
 import { settingsToFrontMatterValue } from '../settings/perNoteSettings'
 import { analyzeHeadings } from '../core/headingAnalyzer'
 import { detectManualNumber } from '../core/manualNumberDetector'
+import { extractSection } from './sectionExtractor'
 
 export function registerCommands(plugin: AutoHeadingPlugin): void {
 
@@ -317,7 +318,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
             .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
             .trim()
           // Remove any auto-number prefix (contains U+2060 marker)
-          headingText = headingText.replace(/^[\u2060\d٠-٩.A-Za-z()]+[\s.:\-—)]+\s*/, '')
+          headingText = headingText.replace(/\u2060/g, '')
           const fileName = view.file?.basename || ''
           const link = `[[${fileName}#${headingText}]]`
           void navigator.clipboard.writeText(link)
@@ -404,6 +405,23 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       editor.setLine(cursor.line, newLine)
       plugin.refreshDecorations()
       return true
+    },
+  })
+
+  // ── Extract section to new note ────────────────────────────
+  plugin.addCommand({
+    id: 'extract-section',
+    name: 'Extract current section to new note',
+    editorCheckCallback: (checking: boolean, editor: Editor) => {
+      const cursor = editor.getCursor()
+      for (let i = cursor.line; i >= 0; i--) {
+        if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
+          if (checking) return true
+          void extractSection(plugin)
+          return true
+        }
+      }
+      return false
     },
   })
 

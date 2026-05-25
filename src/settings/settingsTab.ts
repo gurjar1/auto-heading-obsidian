@@ -325,6 +325,39 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
       .addToggle(t => t.setValue(this.plugin.settings.toolbarShowSkip).onChange(async v => { this.plugin.settings.toolbarShowSkip = v; await this.plugin.saveSettings() }))
     setDisabled(tbSkip, !this.plugin.settings.toolbarEnabled)
     toolbarChildren.push(tbSkip)
+    const tbExtract = new Setting(containerEl).setName('Show extract button').setDesc('Extract a heading section to a new note.')
+      .addToggle(t => t.setValue(this.plugin.settings.toolbarShowExtract).onChange(async v => { this.plugin.settings.toolbarShowExtract = v; await this.plugin.saveSettings() }))
+    setDisabled(tbExtract, !this.plugin.settings.toolbarEnabled)
+    toolbarChildren.push(tbExtract)
+
+    // ═══ SECTION EXTRACTION ═══
+    sectionHeader(containerEl, 'actions', 'Section Extraction')
+    containerEl.createEl('p', { text: 'Extract a heading and its content to a separate note.', cls: 'ah-settings-description' })
+
+    new Setting(containerEl).setName('Extraction mode').setDesc('Cut removes the section from the original note. Copy leaves it in place.')
+      .addDropdown(dd => {
+        dd.addOption('cut', 'Cut (move to new note)')
+        dd.addOption('copy', 'Copy (duplicate to new note)')
+        dd.setValue(this.plugin.settings.extractMode)
+        dd.onChange(async v => { this.plugin.settings.extractMode = v as 'cut' | 'copy'; await this.plugin.saveSettings() })
+      })
+
+    new Setting(containerEl).setName('Replace with').setDesc('When cutting, what to leave in the original note in place of the extracted section.')
+      .addDropdown(dd => {
+        dd.addOption('embed', 'Embed (![[Link]])')
+        dd.addOption('link', 'Link ([[Link]])')
+        dd.addOption('none', 'Nothing')
+        dd.setValue(this.plugin.settings.extractReplaceStyle)
+        dd.onChange(async v => { this.plugin.settings.extractReplaceStyle = v as 'embed' | 'link' | 'none'; await this.plugin.saveSettings() })
+      })
+
+    new Setting(containerEl).setName('New note location').setDesc('Where to save extracted notes.')
+      .addDropdown(dd => {
+        dd.addOption('same', 'Same folder as current note')
+        dd.addOption('ask', 'Ask every time')
+        dd.setValue(this.plugin.settings.extractLocation)
+        dd.onChange(async v => { this.plugin.settings.extractLocation = v as 'same' | 'ask'; await this.plugin.saveSettings() })
+      })
 
     // ═══ FOLD CONTROLS ═══
     sectionHeader(containerEl, 'actions', 'Enable Fold All Commands')

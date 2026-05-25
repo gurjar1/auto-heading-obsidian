@@ -91,6 +91,16 @@ export interface AutoHeadingSettings {
   toolbarShowFormat: boolean
   /** Show skip toggle button in toolbar */
   toolbarShowSkip: boolean
+  /** Show extract section button in toolbar */
+  toolbarShowExtract: boolean
+
+  // ── Section Extraction (Cluster E) ──────────────────────────
+  /** Extraction mode: cut removes content, copy keeps it */
+  extractMode: 'cut' | 'copy'
+  /** What replaces extracted text when cutting */
+  extractReplaceStyle: 'embed' | 'link' | 'none'
+  /** Where to save extracted notes */
+  extractLocation: 'same' | 'ask'
 
   // ── Fold Controls (Cluster F) ────────────────────────────────
   /** Show fold control buttons in editor view actions */
@@ -145,6 +155,12 @@ export const DEFAULT_SETTINGS: Readonly<AutoHeadingSettings> = {
   toolbarShowCopyLink: true,
   toolbarShowFormat: true,
   toolbarShowSkip: true,
+  toolbarShowExtract: true,
+
+  // Section Extraction defaults
+  extractMode: 'cut',
+  extractReplaceStyle: 'embed',
+  extractLocation: 'same',
 
   // Fold Controls defaults
   foldButtonsEnabled: true,
