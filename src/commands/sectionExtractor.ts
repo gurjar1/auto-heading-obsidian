@@ -216,7 +216,7 @@ export class ExtractSectionModal extends Modal {
 
 // ─── Main Extraction Logic ────────────────────────────────────────────
 
-export async function extractSection(plugin: AutoHeadingPlugin): Promise<void> {
+export async function extractSection(plugin: AutoHeadingPlugin, targetLine?: number): Promise<void> {
   const view = plugin.app.workspace.getActiveViewOfType(MarkdownView)
   if (!view?.file) {
     new Notice('No active note.')
@@ -224,7 +224,7 @@ export async function extractSection(plugin: AutoHeadingPlugin): Promise<void> {
   }
 
   const editor = view.editor
-  const cursorLine = editor.getCursor().line
+  const cursorLine = targetLine ?? editor.getCursor().line
   const bounds = findSectionBounds(editor, cursorLine)
 
   if (!bounds) {
@@ -266,7 +266,14 @@ export async function extractSection(plugin: AutoHeadingPlugin): Promise<void> {
       // If Cut mode, remove/replace text in source
       if (plugin.settings.extractMode === 'cut') {
         const from = { line: bounds.headingLine, ch: 0 }
-        const to = { line: bounds.endLine, ch: 0 }
+        let to: { line: number, ch: number }
+        if (bounds.endLine >= editor.lineCount()) {
+          // End of file: select to the end of the last line
+          const lastLine = editor.lastLine()
+          to = { line: lastLine, ch: editor.getLine(lastLine).length }
+        } else {
+          to = { line: bounds.endLine, ch: 0 }
+        }
 
         let replacement = ''
         if (plugin.settings.extractReplaceStyle === 'embed') {

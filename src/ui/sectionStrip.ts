@@ -94,7 +94,7 @@ class SectionStripView {
     }
     this.view.scrollDOM.addEventListener('scroll', this.scrollHandler, { passive: true })
 
-    this.refresh()
+    requestAnimationFrame(() => this.refresh())
   }
 
   update(update: ViewUpdate): void {
@@ -127,13 +127,17 @@ class SectionStripView {
     const mode = (plugin.settings as any).stripUpdateMode || 'cursor'
     let targetPos = this.view.state.selection.main.head
     if (mode === 'scroll') {
-      const rect = this.view.scrollDOM.getBoundingClientRect()
-      const pos = this.view.posAtCoords({ x: rect.left + 50, y: rect.top + 40 }, false)
-      if (pos != null) {
-        targetPos = pos
-      } else {
-        const block = this.view.lineBlockAtHeight(this.view.scrollDOM.scrollTop)
-        targetPos = block ? block.from : this.view.viewport.from
+      try {
+        const rect = this.view.scrollDOM.getBoundingClientRect()
+        const pos = this.view.posAtCoords({ x: rect.left + 50, y: rect.top + 40 }, false)
+        if (pos != null) {
+          targetPos = pos
+        } else {
+          const block = this.view.lineBlockAtHeight(this.view.scrollDOM.scrollTop)
+          targetPos = block ? block.from : this.view.viewport.from
+        }
+      } catch {
+        // posAtCoords can throw during an update cycle; fall back to cursor
       }
     }
     const cursorLine = this.view.state.doc.lineAt(targetPos).number

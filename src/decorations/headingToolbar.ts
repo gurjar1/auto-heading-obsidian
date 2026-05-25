@@ -87,7 +87,6 @@ class HeadingToolbarWidget extends WidgetType {
         let headingText = this.lineText.replace(/^\s{0,3}#{1,6}\s+/, '')
           .replace(/\s*<!--\s*(?:skip|no-number|ah-skip|skip-number)\s*-->\s*/g, '')
           .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
-          .replace(/\u2060/g, '')
           .trim()
         const fileName = plugin?.app.workspace.getActiveFile()?.basename || ''
         void navigator.clipboard.writeText(`[[${fileName}#${headingText}]]`)
@@ -124,8 +123,12 @@ class HeadingToolbarWidget extends WidgetType {
     }
 
     if (showExtract && plugin) {
+      const widgetLineFrom = this.lineFrom
       div.appendChild(makeBtn('📤', 'Extract section to new note', '', () => {
-        ;(plugin.app as any).commands.executeCommandById('auto-heading:extract-section')
+        const lineNumber = view.state.doc.lineAt(widgetLineFrom).number - 1
+        void import('../commands/sectionExtractor').then(mod => {
+          mod.extractSection(plugin, lineNumber)
+        })
       }))
     }
 

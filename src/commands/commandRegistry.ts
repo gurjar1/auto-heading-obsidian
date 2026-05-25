@@ -317,8 +317,6 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
             .replace(/\s*<!--\s*(?:skip|no-number|ah-skip|skip-number)\s*-->\s*/g, '')
             .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
             .trim()
-          // Remove any auto-number prefix (contains U+2060 marker)
-          headingText = headingText.replace(/\u2060/g, '')
           const fileName = view.file?.basename || ''
           const link = `[[${fileName}#${headingText}]]`
           void navigator.clipboard.writeText(link)
@@ -409,7 +407,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
   })
 
   // ── Extract section to new note ────────────────────────────
-  plugin.addCommand({
+   plugin.addCommand({
     id: 'extract-section',
     name: 'Extract current section to new note',
     editorCheckCallback: (checking: boolean, editor: Editor) => {
@@ -417,7 +415,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       for (let i = cursor.line; i >= 0; i--) {
         if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
           if (checking) return true
-          void extractSection(plugin)
+          void extractSection(plugin, cursor.line)
           return true
         }
       }
