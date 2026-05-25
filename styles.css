@@ -633,13 +633,22 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 2px 8px;
+  padding: 2px 5px;
   border-radius: 3px;
   font-size: 11px;
   line-height: 1;
   transition: color 0.12s, background 0.12s;
   font-family: var(--font-ui-small);
   user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ah-toolbar-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
 }
 
 .ah-toolbar-btn:hover {
@@ -657,7 +666,7 @@
 
 .ah-toolbar-skip-active {
   color: var(--text-error);
-  text-decoration: line-through;
+  opacity: 0.8;
 }
 
 /* ─── Cluster D: Auto-TOC ─────────────────────────────────── */

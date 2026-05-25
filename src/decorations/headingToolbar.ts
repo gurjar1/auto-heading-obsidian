@@ -1,12 +1,14 @@
 /**
  * Auto Heading — Heading Inline Toolbar
  *
- * Floating action buttons (promote/demote/copy/format/skip) on heading lines.
+ * Floating action buttons (promote/demote/copy/embed/format/skip/extract) on heading lines.
+ * Uses Obsidian's native Lucide icons for a clean, premium look.
  */
 
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view'
 import { RangeSetBuilder } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
+import { setIcon } from 'obsidian'
 import type { Extension } from '@codemirror/state'
 import type AutoHeadingPlugin from '../main'
 
@@ -24,6 +26,14 @@ function toTitleCase(text: string): string {
     }
     return w.toLowerCase()
   }).join('')
+}
+
+/** Clean heading text for link/embed generation */
+function cleanHeadingText(lineText: string): string {
+  return lineText.replace(/^\s{0,3}#{1,6}\s+/, '')
+    .replace(/\s*<!--\s*(?:skip|no-number|ah-skip|skip-number)\s*-->\s*/g, '')
+    .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
+    .trim()
 }
 
 class HeadingToolbarWidget extends WidgetType {
@@ -50,53 +60,80 @@ class HeadingToolbarWidget extends WidgetType {
     const hashes = match[1]
     const plugin = this.getPlugin()
     const settings = plugin?.settings
-    const showPromote = !settings || (settings as any).toolbarShowPromote !== false
-    const showCopy = !settings || (settings as any).toolbarShowCopyLink !== false
-    const showFormat = !settings || (settings as any).toolbarShowFormat !== false
-    const showSkip = !settings || (settings as any).toolbarShowSkip !== false
+    const showPromote = !settings || settings.toolbarShowPromote !== false
+    const showCopy = !settings || settings.toolbarShowCopyLink !== false
+    const showCopyEmbed = !settings || settings.toolbarShowCopyEmbed !== false
+    const showFormat = !settings || settings.toolbarShowFormat !== false
+    const showSkip = !settings || settings.toolbarShowSkip !== false
+    const showExtract = !settings || settings.toolbarShowExtract !== false
 
-    const showExtract = !settings || (settings as any).toolbarShowExtract !== false
-
-    const makeBtn = (text: string, title: string, cls: string, handler: () => void) => {
+    /**
+     * Create a toolbar button with either a Lucide icon or text label.
+     * @param iconOrText - Lucide icon ID (e.g. 'link') or text fallback (e.g. 'Aa')
+     * @param title      - Tooltip text
+     * @param cls        - Extra CSS class(es)
+     * @param handler    - Click callback
+     * @param useIcon    - If true, render Lucide SVG; if false, use textContent
+     */
+    const makeBtn = (iconOrText: string, title: string, cls: string, handler: () => void, useIcon = true) => {
       const btn = activeDocument.createElement('button')
-      btn.className = `ah-toolbar-btn ${cls}`
-      btn.textContent = text
+      btn.className = `ah-toolbar-btn ${cls}`.trim()
       btn.title = title
+      if (useIcon) {
+        setIcon(btn, iconOrText)
+      } else {
+        btn.textContent = iconOrText
+      }
       btn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation() })
       btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); handler() })
       return btn
     }
 
+    // ── Promote / Demote ──────────────────────────────────────
     if (showPromote) {
       if (hashes.length < 6) {
-        div.appendChild(makeBtn('−', 'Demote heading', '', () => {
+        div.appendChild(makeBtn('chevron-down', 'Demote heading', '', () => {
           const newText = this.lineText.replace(/^(\s{0,3})(#{1,6})/, '$1$2#')
           view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: newText } })
         }))
       }
       if (hashes.length > 1) {
-        div.appendChild(makeBtn('+', 'Promote heading', '', () => {
+        div.appendChild(makeBtn('chevron-up', 'Promote heading', '', () => {
           const newText = this.lineText.replace(/^(\s{0,3})#{1}(#{1,5})/, '$1$2')
           view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: newText } })
         }))
       }
     }
 
+    // ── Copy Link ─────────────────────────────────────────────
     if (showCopy) {
-      const copyBtn = makeBtn('🔗', 'Copy link to section', '', () => {
-        let headingText = this.lineText.replace(/^\s{0,3}#{1,6}\s+/, '')
-          .replace(/\s*<!--\s*(?:skip|no-number|ah-skip|skip-number)\s*-->\s*/g, '')
-          .replace(/\s*\^[a-zA-Z0-9_-]+\s*$/, '')
-          .trim()
+      const copyBtn = makeBtn('link', 'Copy link to section', '', () => {
+        const headingText = cleanHeadingText(this.lineText)
         const fileName = plugin?.app.workspace.getActiveFile()?.basename || ''
         void navigator.clipboard.writeText(`[[${fileName}#${headingText}]]`)
+        copyBtn.empty()
         copyBtn.textContent = '✓'
         copyBtn.classList.add('ah-toolbar-btn-success')
-        setTimeout(() => { copyBtn.textContent = '🔗'; copyBtn.classList.remove('ah-toolbar-btn-success') }, 1500)
+        setTimeout(() => { copyBtn.textContent = ''; setIcon(copyBtn, 'link'); copyBtn.classList.remove('ah-toolbar-btn-success') }, 1500)
       })
       div.appendChild(copyBtn)
     }
 
+    // ── Copy Embed Link ───────────────────────────────────────
+    if (showCopyEmbed) {
+      const embedBtn = makeBtn('file-symlink', 'Copy embed link to section', '', () => {
+        const headingText = cleanHeadingText(this.lineText)
+        const fileName = plugin?.app.workspace.getActiveFile()?.basename || ''
+        void navigator.clipboard.writeText(`![[${fileName}#${headingText}]]`)
+        embedBtn.empty()
+        embedBtn.textContent = '✓'
+        embedBtn.classList.add('ah-toolbar-btn-success')
+        setTimeout(() => { embedBtn.textContent = ''; setIcon(embedBtn, 'file-symlink'); embedBtn.classList.remove('ah-toolbar-btn-success') }, 1500)
+      })
+      div.appendChild(embedBtn)
+    }
+
+    // ── Format: Title Case ────────────────────────────────────
     if (showFormat) {
       div.appendChild(makeBtn('Aa', 'Format: Title Case', '', () => {
         const m = this.lineText.match(/^(\s{0,3}#{1,6}\s+)(.+)$/)
@@ -104,12 +141,13 @@ class HeadingToolbarWidget extends WidgetType {
           const formatted = toTitleCase(m[2])
           view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: m[1] + formatted } })
         }
-      }))
+      }, false))
     }
 
+    // ── Skip Toggle ───────────────────────────────────────────
     if (showSkip) {
       const hasSkip = /<!--\s*(?:skip|no-number|ah-skip)\s*-->/.test(this.lineText)
-      const skipBtn = makeBtn('⊘', hasSkip ? 'Remove skip' : 'Skip this heading',
+      const skipBtn = makeBtn('eye-off', hasSkip ? 'Remove skip' : 'Skip this heading',
         hasSkip ? 'ah-toolbar-skip-active' : '', () => {
           let newText: string
           if (hasSkip) {
@@ -122,9 +160,10 @@ class HeadingToolbarWidget extends WidgetType {
       div.appendChild(skipBtn)
     }
 
+    // ── Extract Section ───────────────────────────────────────
     if (showExtract && plugin) {
       const widgetLineFrom = this.lineFrom
-      div.appendChild(makeBtn('📤', 'Extract section to new note', '', () => {
+      div.appendChild(makeBtn('file-output', 'Extract section to new note', '', () => {
         const lineNumber = view.state.doc.lineAt(widgetLineFrom).number - 1
         void import('../commands/sectionExtractor').then(mod => {
           mod.extractSection(plugin, lineNumber)
@@ -152,7 +191,7 @@ export function createHeadingToolbar(getPlugin: () => AutoHeadingPlugin | null):
 
 function buildToolbarDecos(view: EditorView, getPlugin: () => AutoHeadingPlugin | null): DecorationSet {
   const plugin = getPlugin()
-  if (plugin && (plugin.settings as any).toolbarEnabled === false) return Decoration.none
+  if (plugin && plugin.settings.toolbarEnabled === false) return Decoration.none
 
   const sel = view.state.selection.main
   const line = view.state.doc.lineAt(sel.head)

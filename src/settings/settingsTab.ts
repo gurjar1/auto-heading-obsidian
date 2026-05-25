@@ -330,6 +330,11 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     setDisabled(tbExtract, !this.plugin.settings.toolbarEnabled)
     toolbarChildren.push(tbExtract)
 
+    const tbEmbed = new Setting(containerEl).setName('Show copy embed button').setDesc('Copy ![[Note#Section]] embed link — content renders inline and stays in sync.')
+      .addToggle(t => t.setValue(this.plugin.settings.toolbarShowCopyEmbed).onChange(async v => { this.plugin.settings.toolbarShowCopyEmbed = v; await this.plugin.saveSettings() }))
+    setDisabled(tbEmbed, !this.plugin.settings.toolbarEnabled)
+    toolbarChildren.push(tbEmbed)
+
     // ═══ SECTION EXTRACTION ═══
     sectionHeader(containerEl, 'actions', 'Section Extraction')
     containerEl.createEl('p', { text: 'Extract a heading and its content to a separate note.', cls: 'ah-settings-description' })

@@ -91,6 +91,8 @@ export interface AutoHeadingSettings {
   toolbarShowFormat: boolean
   /** Show skip toggle button in toolbar */
   toolbarShowSkip: boolean
+  /** Show copy embed link button in toolbar */
+  toolbarShowCopyEmbed: boolean
   /** Show extract section button in toolbar */
   toolbarShowExtract: boolean
 
@@ -155,6 +157,7 @@ export const DEFAULT_SETTINGS: Readonly<AutoHeadingSettings> = {
   toolbarShowCopyLink: true,
   toolbarShowFormat: true,
   toolbarShowSkip: true,
+  toolbarShowCopyEmbed: true,
   toolbarShowExtract: true,
 
   // Section Extraction defaults
