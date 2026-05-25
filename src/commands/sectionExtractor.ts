@@ -35,7 +35,7 @@ export function findSectionBounds(editor: Editor, cursorLine: number): SectionBo
 
   for (let i = cursorLine; i >= 0; i--) {
     const line = editor.getLine(i)
-    const m = line.match(/^\s{0,3}(#{1,6})\s+(.+)/)
+    const m = line.match(/^\s{0,3}(#{1,6})\s+(.*)/)
     if (m) {
       headingLine = i
       level = m[1].length
@@ -179,6 +179,9 @@ export class ExtractSectionModal extends Modal {
         btn.onClick(() => this.doSubmit())
         this.submitBtn = btn.buttonEl
       })
+
+    // Validate initial state (e.g. filename already exists)
+    this.validateInput()
   }
 
   private validateInput(): boolean {
@@ -294,5 +297,5 @@ export async function extractSection(plugin: AutoHeadingPlugin, targetLine?: num
         await plugin.app.workspace.getLeaf('tab').openFile(newFile)
       }
     },
-  )
+  ).open()
 }
