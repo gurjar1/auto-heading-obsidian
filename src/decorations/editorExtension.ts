@@ -74,18 +74,35 @@ function extractHeadingsFromDoc(state: EditorState): DocHeading[] {
   const headings: DocHeading[] = []
   const doc = state.doc
   let insideCodeBlock = false
+  let fenceChar = ''    // '`' or '~'
+  let fenceLen = 0      // number of fence chars in the opening fence
 
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i)
     const text = line.text
     const trimmed = text.trimStart()
 
-    // Track code fences
-    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
-      insideCodeBlock = !insideCodeBlock
+    // Track code fences (CommonMark spec compliant):
+    // - Opening fence: ≥3 backticks or tildes, optionally followed by info string
+    // - Closing fence: same char as opening, ≥ opening count, ONLY whitespace after
+    if (insideCodeBlock) {
+      // Check for closing fence: same char, at least fenceLen, nothing else
+      const closeMatch = trimmed.match(/^(`{3,}|~{3,})\s*$/)
+      if (closeMatch && closeMatch[1][0] === fenceChar && closeMatch[1].length >= fenceLen) {
+        insideCodeBlock = false
+        fenceChar = ''
+        fenceLen = 0
+      }
       continue
     }
-    if (insideCodeBlock) continue
+    // Check for opening fence: ≥3 backticks or tildes (may have info string after)
+    const openMatch = trimmed.match(/^(`{3,}|~{3,})/)
+    if (openMatch) {
+      insideCodeBlock = true
+      fenceChar = openMatch[1][0]
+      fenceLen = openMatch[1].length
+      continue
+    }
 
     const match = text.match(/^(\s{0,3})(#{1,6})\s+(.+)/)
     if (!match) continue

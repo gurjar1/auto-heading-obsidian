@@ -873,3 +873,17 @@
   color: var(--text-faint);
   font-family: var(--font-monospace);
 }
+
+/* ─── Extract Section Modal ──────────────────────────────── */
+
+.ah-extract-input {
+  width: 100%;
+}
+
+.ah-extract-error-text {
+  color: var(--text-error);
+}
+
+.ah-extract-hidden {
+  display: none;
+}

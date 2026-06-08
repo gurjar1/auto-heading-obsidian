@@ -5,7 +5,7 @@
  * Uses shorter <!-- skip --> marker and removes computed numbers.
  */
 
-import { MarkdownView, Menu, Editor } from 'obsidian'
+import { MarkdownView, Menu, Editor, Notice } from 'obsidian'
 import type AutoHeadingPlugin from '../main'
 import { detectManualNumber } from '../core/manualNumberDetector'
 
@@ -109,7 +109,7 @@ export function registerContextMenu(plugin: AutoHeadingPlugin): void {
                 .trim()
               const fileName = view.file?.basename || ''
               void navigator.clipboard.writeText(`[[${fileName}#${text}]]`)
-              new (require('obsidian').Notice)(`Copied: [[${fileName}#${text}]]`)
+              new Notice(`Copied: [[${fileName}#${text}]]`)
             }
           })
       })

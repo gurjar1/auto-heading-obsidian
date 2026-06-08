@@ -76,7 +76,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     containerEl.empty()
 
     // Use Setting heading API instead of createEl('h2')
-    new Setting(containerEl).setName('Auto Heading').setHeading()
+    new Setting(containerEl).setName('General').setHeading()
 
     // ═══ MODE ═══
     sectionHeader(containerEl, 'mode', 'Mode')
@@ -92,7 +92,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     if (this.plugin.settings.mode === 'burn-in') {
       // Build info box using DOM API instead of innerHTML
       const info = containerEl.createEl('div', { cls: 'ah-settings-info-box' })
-      const strong1 = info.createEl('strong', { text: 'Auto-number' })
+      info.createEl('strong', { text: 'Auto-number' })
       info.appendText(' writes numbers into your file. Numbers appear in TOC, PDF, Publish.')
       info.createEl('br')
       info.appendText('Numbers auto-update after edits (configurable delay). ')
@@ -373,7 +373,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName('Apply heading numbers').setDesc('Write computed numbers into headings right now. Appears in TOC and exports.')
       .addButton(b => b.setButtonText('Write Numbers to File').setCta().onClick(() => this.doBurnIn()))
     new Setting(containerEl).setName('Remove heading numbers').setDesc('Strip all numbers from headings and pause auto-numbering for this note.')
-      .addButton(b => b.setButtonText('Remove & Stop').setWarning().onClick(() => this.doRemoveNumbers()))
+      .addButton(b => b.setButtonText('Remove & Stop').setDestructive().onClick(() => this.doRemoveNumbers()))
     new Setting(containerEl).setName('Insert / Remove Table of Contents').setDesc('Toggle a ```toc block at the top of the current note.')
       .addButton(b => b.setButtonText('Toggle TOC').onClick(() => this.doToggleToc()))
 
@@ -391,8 +391,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     sectionHeader(containerEl, 'keyboard', 'Keyboard Shortcuts')
     new Setting(containerEl).setName('Manage hotkeys').setDesc('Opens Obsidian\'s hotkey settings pre-filtered to Auto Heading commands.')
       .addButton(b => b.setButtonText('Open Hotkeys').onClick(() => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const appSetting = (this.app as any).setting as { open: () => void; openTabById: (id: string) => void; activeTab: { searchInputEl: HTMLInputElement } } | undefined
+        const appSetting = (this.app as unknown as { setting?: { open: () => void; openTabById: (id: string) => void; activeTab: { searchInputEl: HTMLInputElement } } }).setting
         if (!appSetting) return
         appSetting.open()
         appSetting.openTabById('hotkeys')
@@ -461,12 +460,13 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     if (restorePos != null && scrollEl) {
       const el = scrollEl
       const pos = restorePos
-      requestAnimationFrame(() => { el.scrollTop = pos })
+      window.requestAnimationFrame(() => { el.scrollTop = pos })
     }
   }
 
   private rebuild(scrollEl: Element | null | undefined): void {
     this._pendingScrollRestore = scrollEl?.scrollTop ?? 0
+    // TODO: display() is deprecated since Obsidian 1.13.0; migrate to getSettingDefinitions() in a future refactor
     this.display()
   }
 

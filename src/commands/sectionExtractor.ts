@@ -5,7 +5,7 @@
  * Supports cut/copy modes with optional link replacement.
  */
 
-import { App, Modal, Notice, Setting, TFile, TFolder, MarkdownView } from 'obsidian'
+import { App, Modal, Notice, Setting, TFile, MarkdownView } from 'obsidian'
 import type { Editor } from 'obsidian'
 import type AutoHeadingPlugin from '../main'
 
@@ -52,17 +52,30 @@ export function findSectionBounds(editor: Editor, cursorLine: number): SectionBo
   const lineCount = editor.lineCount()
   let endLine = lineCount
   let insideCodeBlock = false
+  let fenceChar = ''
+  let fenceLen = 0
 
   for (let i = headingLine + 1; i < lineCount; i++) {
     const line = editor.getLine(i)
     const trimmed = line.trimStart()
 
-    // Track code fences
-    if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
-      insideCodeBlock = !insideCodeBlock
+    // Track code fences (CommonMark spec compliant)
+    if (insideCodeBlock) {
+      const closeMatch = trimmed.match(/^(`{3,}|~{3,})\s*$/)
+      if (closeMatch && closeMatch[1][0] === fenceChar && closeMatch[1].length >= fenceLen) {
+        insideCodeBlock = false
+        fenceChar = ''
+        fenceLen = 0
+      }
       continue
     }
-    if (insideCodeBlock) continue
+    const openMatch = trimmed.match(/^(`{3,}|~{3,})/)
+    if (openMatch) {
+      insideCodeBlock = true
+      fenceChar = openMatch[1][0]
+      fenceLen = openMatch[1].length
+      continue
+    }
 
     // Check for heading of same or higher level
     const hm = line.match(/^\s{0,3}(#{1,6})\s/)
@@ -141,7 +154,7 @@ export class ExtractSectionModal extends Modal {
       .setName('Note name')
       .addText(text => {
         text.setValue(this.fileName)
-        text.inputEl.style.width = '100%'
+        text.inputEl.addClass('ah-extract-input')
         text.onChange(v => {
           this.fileName = v
           this.validateInput()
@@ -151,7 +164,7 @@ export class ExtractSectionModal extends Modal {
           if (e.key === 'Enter') { e.preventDefault(); this.doSubmit() }
         })
         // Auto-focus
-        setTimeout(() => { text.inputEl.focus(); text.inputEl.select() }, 50)
+        window.setTimeout(() => { text.inputEl.focus(); text.inputEl.select() }, 50)
       })
 
     // Folder picker (only when extractLocation === 'ask')
@@ -168,9 +181,7 @@ export class ExtractSectionModal extends Modal {
     }
 
     // Error display
-    this.errorEl = contentEl.createEl('p', { cls: 'ah-extract-error' })
-    this.errorEl.style.color = 'var(--text-error)'
-    this.errorEl.style.display = 'none'
+    this.errorEl = contentEl.createEl('p', { cls: 'ah-extract-error ah-extract-error-text ah-extract-hidden' })
 
     // Submit button
     new Setting(contentEl)
@@ -201,12 +212,12 @@ export class ExtractSectionModal extends Modal {
   }
 
   private showError(msg: string): void {
-    if (this.errorEl) { this.errorEl.textContent = msg; this.errorEl.style.display = 'block' }
+    if (this.errorEl) { this.errorEl.textContent = msg; this.errorEl.removeClass('ah-extract-hidden') }
     if (this.submitBtn) this.submitBtn.disabled = true
   }
 
   private hideError(): void {
-    if (this.errorEl) this.errorEl.style.display = 'none'
+    if (this.errorEl) this.errorEl.addClass('ah-extract-hidden')
     if (this.submitBtn) this.submitBtn.disabled = false
   }
 
@@ -255,7 +266,7 @@ export async function extractSection(plugin: AutoHeadingPlugin, targetLine?: num
     currentFolder,
     folders,
     showFolderPicker,
-    async (fileName: string, folder: string) => {
+    (fileName: string, folder: string) => { void (async () => {
       const folderPath = folder === '/' ? '' : folder + '/'
       const fullPath = folderPath + fileName + '.md'
 
@@ -296,6 +307,6 @@ export async function extractSection(plugin: AutoHeadingPlugin, targetLine?: num
       if (newFile instanceof TFile) {
         await plugin.app.workspace.getLeaf('tab').openFile(newFile)
       }
-    },
+    })() },
   ).open()
 }

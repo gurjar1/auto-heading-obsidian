@@ -83,7 +83,7 @@ async function renderToc(plugin: AutoHeadingPlugin, source: string, el: HTMLElem
     if (opts.indent) {
       const depth = h.level - baseLevel
       for (let d = 0; d < depth; d++) {
-        let sub = parent.querySelector(':scope > li:last-child > ul, :scope > li:last-child > ol') as HTMLElement | null
+        let sub = parent.querySelector<HTMLElement>(':scope > li:last-child > ul, :scope > li:last-child > ol')
         if (!sub) {
           const lastLi = parent.querySelector(':scope > li:last-child') as HTMLElement
           if (lastLi) {
@@ -134,7 +134,7 @@ export function registerTocProcessor(plugin: AutoHeadingPlugin): void {
     for (const entry of activeTocEntries) {
       if (entry.ctx.sourcePath === filePath) {
         entry.el.empty()
-        renderToc(plugin, entry.source, entry.el, entry.ctx)
+        void renderToc(plugin, entry.source, entry.el, entry.ctx)
       }
     }
   }, 300, true)

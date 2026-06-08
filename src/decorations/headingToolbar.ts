@@ -126,7 +126,7 @@ class HeadingToolbarWidget extends WidgetType {
         copyBtn.empty()
         copyBtn.textContent = '✓'
         copyBtn.classList.add('ah-toolbar-btn-success')
-        setTimeout(() => { copyBtn.textContent = ''; setIcon(copyBtn, 'link'); copyBtn.classList.remove('ah-toolbar-btn-success') }, 1500)
+        window.setTimeout(() => { copyBtn.textContent = ''; setIcon(copyBtn, 'link'); copyBtn.classList.remove('ah-toolbar-btn-success') }, 1500)
       })
       div.appendChild(copyBtn)
     }
@@ -140,7 +140,7 @@ class HeadingToolbarWidget extends WidgetType {
         embedBtn.empty()
         embedBtn.textContent = '✓'
         embedBtn.classList.add('ah-toolbar-btn-success')
-        setTimeout(() => { embedBtn.textContent = ''; setIcon(embedBtn, 'file-symlink'); embedBtn.classList.remove('ah-toolbar-btn-success') }, 1500)
+        window.setTimeout(() => { embedBtn.textContent = ''; setIcon(embedBtn, 'file-symlink'); embedBtn.classList.remove('ah-toolbar-btn-success') }, 1500)
       })
       div.appendChild(embedBtn)
     }
@@ -195,10 +195,8 @@ export function createHeadingToolbar(getPlugin: () => AutoHeadingPlugin | null):
 
   return ViewPlugin.define(
     (view) => {
-      const decos = buildToolbarDecos(view, getPlugin)
-      lastToolbarLine = view.state.doc.lineAt(view.state.selection.main.head).number
-      return {
-        decorations: decos,
+      const pluginValue = {
+        decorations: buildToolbarDecos(view, getPlugin),
         update(update: ViewUpdate) {
           const curLine = update.state.doc.lineAt(update.state.selection.main.head).number
 
@@ -207,16 +205,18 @@ export function createHeadingToolbar(getPlugin: () => AutoHeadingPlugin | null):
             // rebuilding. This prevents the toolbar widget from being destroyed
             // and recreated on every keystroke, which caused DOM churn that
             // contributed to cursor jump issues in headings.
-            this.decorations = this.decorations.map(update.changes)
+            pluginValue.decorations = pluginValue.decorations.map(update.changes)
             return
           }
 
           if (update.selectionSet || update.docChanged) {
             lastToolbarLine = curLine
-            this.decorations = buildToolbarDecos(update.view, getPlugin)
+            pluginValue.decorations = buildToolbarDecos(update.view, getPlugin)
           }
         },
       }
+      lastToolbarLine = view.state.doc.lineAt(view.state.selection.main.head).number
+      return pluginValue
     },
     { decorations: (v) => v.decorations }
   )

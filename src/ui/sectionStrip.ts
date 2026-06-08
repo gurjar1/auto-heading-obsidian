@@ -88,19 +88,19 @@ class SectionStripView {
     view.dom.insertBefore(this.el, view.dom.firstChild)
 
     this.scrollHandler = () => {
-      if ((this.getPlugin()?.settings as any).stripUpdateMode === 'scroll') {
+      if (this.getPlugin()?.settings.stripUpdateMode === 'scroll') {
         this.refresh()
       }
     }
     this.view.scrollDOM.addEventListener('scroll', this.scrollHandler, { passive: true })
 
-    requestAnimationFrame(() => this.refresh())
+    window.requestAnimationFrame(() => this.refresh())
   }
 
   update(update: ViewUpdate): void {
     if (update.selectionSet || update.docChanged || update.geometryChanged) {
       this.refresh()
-    } else if ((this.getPlugin()?.settings as any).stripUpdateMode === 'scroll') {
+    } else if (this.getPlugin()?.settings.stripUpdateMode === 'scroll') {
       this.refresh()
     }
   }
@@ -112,7 +112,7 @@ class SectionStripView {
 
   private refresh(): void {
     const plugin = this.getPlugin()
-    if (!plugin || (plugin.settings as any).stripEnabled === false) {
+    if (!plugin || plugin.settings.stripEnabled === false) {
       this.el.classList.add('ah-strip-hidden')
       return
     }
@@ -124,7 +124,7 @@ class SectionStripView {
     }
     this.el.classList.remove('ah-strip-hidden')
 
-    const mode = (plugin.settings as any).stripUpdateMode || 'cursor'
+    const mode = plugin.settings.stripUpdateMode || 'cursor'
     let targetPos = this.view.state.selection.main.head
     if (mode === 'scroll') {
       try {
@@ -147,8 +147,8 @@ class SectionStripView {
       if (headings[i].lineNum <= cursorLine) { currentIdx = i; break }
     }
 
-    const showBreadcrumb = (plugin.settings as any).stripShowBreadcrumb !== false
-    const showNav = (plugin.settings as any).stripShowNavArrows !== false
+    const showBreadcrumb = plugin.settings.stripShowBreadcrumb !== false
+    const showNav = plugin.settings.stripShowNavArrows !== false
 
     // Breadcrumb
     this.breadcrumbEl.empty()
@@ -210,7 +210,7 @@ class SectionStripView {
     const file = plugin.app.workspace.getActiveFile()
     if (!file) { new Notice('No active note.'); return }
 
-    plugin.app.vault.process(file, (content) => {
+    void plugin.app.vault.process(file, (content) => {
       const tocRegex = /```(?:toc|ah-toc)\s*\n[\s\S]*?```\s*\n?\n?/m
       const match = content.match(tocRegex)
       if (match && match.index != null) {

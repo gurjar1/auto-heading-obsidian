@@ -5,7 +5,7 @@
  * No default hotkeys — assign via Settings → Hotkeys → "Auto Heading".
  */
 
-import { Editor, MarkdownView, Notice } from 'obsidian'
+import { Editor, FuzzySuggestModal, MarkdownView, Notice } from 'obsidian'
 import type AutoHeadingPlugin from '../main'
 import { burnInNumbers } from '../burnIn/burnInEngine'
 import { removeBurnedInNumbers } from '../burnIn/burnInRemover'
@@ -282,7 +282,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       const getLine = (line: number) => view.editor.getLine(line)
       const analysis = analyzeHeadings(md.headings, getLine, s)
 
-      const { FuzzySuggestModal } = require('obsidian') as typeof import('obsidian')
+      const activeView = view
       class HeadingPicker extends FuzzySuggestModal<{ line: number; text: string }> {
         getItems() {
           return analysis.headings.map(h => ({
@@ -292,8 +292,8 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
         }
         getItemText(item: { text: string }) { return item.text }
         onChooseItem(item: { line: number }) {
-          view.editor.setCursor({ line: item.line, ch: 0 })
-          view.editor.scrollIntoView({ from: { line: item.line, ch: 0 }, to: { line: item.line, ch: 0 } }, true)
+          activeView.editor.setCursor({ line: item.line, ch: 0 })
+          activeView.editor.scrollIntoView({ from: { line: item.line, ch: 0 }, to: { line: item.line, ch: 0 } }, true)
         }
       }
       new HeadingPicker(plugin.app).open()
@@ -342,7 +342,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       if (!hasHeading) return false
       for (let i = 0; i < lineCount; i++) {
         if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
-          editor.fold(i)
+          (editor as unknown as { fold(line: number): void }).fold(i)
         }
       }
       new Notice('Auto Heading: All headings folded')
@@ -364,7 +364,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       if (!hasHeading) return false
       for (let i = lineCount - 1; i >= 0; i--) {
         if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) {
-          editor.unfold(i)
+          (editor as unknown as { unfold(line: number): void }).unfold(i)
         }
       }
       new Notice('Auto Heading: All headings unfolded')
@@ -464,7 +464,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
       if (leaf) {
         leaf.detach()
       } else {
-        plugin.app.workspace.getRightLeaf(false)?.setViewState({ type: 'outline' })
+        void plugin.app.workspace.getRightLeaf(false)?.setViewState({ type: 'outline' })
       }
     },
   })

@@ -87,7 +87,7 @@ export function parsePerNoteSettings(metadata: CachedMetadata): PerNoteOverrides
         sepVal = sepVal.slice(1, -1)
       }
       if (isValidSeparator(sepVal)) {
-        overrides.separator = sepVal as SeparatorStyle
+        overrides.separator = sepVal
       }
     } else if (trimmed.startsWith('format')) {
       let fmtVal = trimmed.replace('format', '').trim()

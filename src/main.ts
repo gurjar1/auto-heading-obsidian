@@ -13,7 +13,7 @@ import type { EditorView } from '@codemirror/view'
 import { AutoHeadingSettings, DEFAULT_SETTINGS, mergeSettings } from './settings/settingsTypes'
 import { AutoHeadingSettingTab } from './settings/settingsTab'
 import { parsePerNoteSettings } from './settings/perNoteSettings'
-import { getEditorExtensions, updateDecorationSettings, getGutterSettings } from './decorations/editorExtension'
+import { getEditorExtensions, updateDecorationSettings } from './decorations/editorExtension'
 import {
   createHeadingPostProcessor,
   updatePostProcessorSettings,
@@ -36,13 +36,13 @@ export default class AutoHeadingPlugin extends Plugin {
   private _lastActiveSettingsJson = ''
 
   // Dynamic auto burn-in timer — uses this.settings.autoBurnInDelay
-  private _burnInTimer: ReturnType<typeof setTimeout> | null = null
+  private _burnInTimer: number | null = null
   private scheduleBurnIn(filePath: string): void {
-    if (this._burnInTimer != null) clearTimeout(this._burnInTimer)
+    if (this._burnInTimer != null) window.clearTimeout(this._burnInTimer)
     const delay = this.settings.autoBurnInDelay || 2000
-    this._burnInTimer = setTimeout(() => {
+    this._burnInTimer = window.setTimeout(() => {
       this._burnInTimer = null
-      this.autoBurnIn(filePath)
+      void this.autoBurnIn(filePath)
     }, delay)
   }
 
@@ -113,7 +113,7 @@ export default class AutoHeadingPlugin extends Plugin {
           if (settingsJson !== this._lastActiveSettingsJson) {
             this._lastActiveSettingsJson = settingsJson
             // Defer to avoid Obsidian's internal reconciliation fighting the cursor
-            setTimeout(() => this.onActiveFileChange(), 50)
+            window.setTimeout(() => this.onActiveFileChange(), 50)
           } else {
             this.updateStatusBar()
           }
@@ -137,7 +137,7 @@ export default class AutoHeadingPlugin extends Plugin {
         }
         // Cancel any pending burn-in timer from the previous file
         if (this._burnInTimer != null) {
-          clearTimeout(this._burnInTimer)
+          window.clearTimeout(this._burnInTimer)
           this._burnInTimer = null
         }
         this.refreshDecorations()
@@ -149,7 +149,7 @@ export default class AutoHeadingPlugin extends Plugin {
 
   onunload(): void {
     if (this._burnInTimer != null) {
-      clearTimeout(this._burnInTimer)
+      window.clearTimeout(this._burnInTimer)
       this._burnInTimer = null
     }
     this.statusBar?.destroy()
@@ -158,7 +158,7 @@ export default class AutoHeadingPlugin extends Plugin {
   // ─── Settings ──────────────────────────────────────────────
 
   async loadSettings(): Promise<void> {
-    const data: Record<string, unknown> | null = await this.loadData()
+    const data = (await this.loadData()) as Record<string, unknown> | null
     this.settings = Object.assign({}, DEFAULT_SETTINGS, data)
 
     // Migrate old scope enum to new toggle model
@@ -377,7 +377,7 @@ export default class AutoHeadingPlugin extends Plugin {
         if (checking) return true
         const editor = view.editor
         for (let i = 0; i < editor.lineCount(); i++) {
-          if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) editor.fold(i)
+          if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) (editor as unknown as { fold(line: number): void }).fold(i)
         }
         return true
       },
@@ -394,7 +394,7 @@ export default class AutoHeadingPlugin extends Plugin {
         if (checking) return true
         const editor = view.editor
         for (let i = editor.lineCount() - 1; i >= 0; i--) {
-          if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) editor.unfold(i)
+          if (editor.getLine(i).match(/^\s{0,3}#{1,6}\s/)) (editor as unknown as { unfold(line: number): void }).unfold(i)
         }
         return true
       },
