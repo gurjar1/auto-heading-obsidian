@@ -67,6 +67,16 @@ class HeadingToolbarWidget extends WidgetType {
     const showSkip = !settings || settings.toolbarShowSkip !== false
     const showExtract = !settings || settings.toolbarShowExtract !== false
 
+    // Read the CURRENT line from the view at action time.
+    // The widget may have been mapped (not rebuilt) during typing, so
+    // this.lineText / lineFrom / lineTo could be stale. Always use
+    // fresh state from the editor when performing actions.
+    const curLine = () => {
+      const sel = view.state.selection.main
+      const line = view.state.doc.lineAt(sel.head)
+      return { text: line.text, from: line.from, to: line.to }
+    }
+
     /**
      * Create a toolbar button with either a Lucide icon or text label.
      * @param iconOrText - Lucide icon ID (e.g. 'link') or text fallback (e.g. 'Aa')
@@ -93,14 +103,16 @@ class HeadingToolbarWidget extends WidgetType {
     if (showPromote) {
       if (hashes.length < 6) {
         div.appendChild(makeBtn('chevron-down', 'Demote heading', '', () => {
-          const newText = this.lineText.replace(/^(\s{0,3})(#{1,6})/, '$1$2#')
-          view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: newText } })
+          const ln = curLine()
+          const newText = ln.text.replace(/^(\s{0,3})(#{1,6})/, '$1$2#')
+          view.dispatch({ changes: { from: ln.from, to: ln.to, insert: newText } })
         }))
       }
       if (hashes.length > 1) {
         div.appendChild(makeBtn('chevron-up', 'Promote heading', '', () => {
-          const newText = this.lineText.replace(/^(\s{0,3})#{1}(#{1,5})/, '$1$2')
-          view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: newText } })
+          const ln = curLine()
+          const newText = ln.text.replace(/^(\s{0,3})#{1}(#{1,5})/, '$1$2')
+          view.dispatch({ changes: { from: ln.from, to: ln.to, insert: newText } })
         }))
       }
     }
@@ -108,7 +120,7 @@ class HeadingToolbarWidget extends WidgetType {
     // ── Copy Link ─────────────────────────────────────────────
     if (showCopy) {
       const copyBtn = makeBtn('link', 'Copy link to section', '', () => {
-        const headingText = cleanHeadingText(this.lineText)
+        const headingText = cleanHeadingText(curLine().text)
         const fileName = plugin?.app.workspace.getActiveFile()?.basename || ''
         void navigator.clipboard.writeText(`[[${fileName}#${headingText}]]`)
         copyBtn.empty()
@@ -122,7 +134,7 @@ class HeadingToolbarWidget extends WidgetType {
     // ── Copy Embed Link ───────────────────────────────────────
     if (showCopyEmbed) {
       const embedBtn = makeBtn('file-symlink', 'Copy embed link to section', '', () => {
-        const headingText = cleanHeadingText(this.lineText)
+        const headingText = cleanHeadingText(curLine().text)
         const fileName = plugin?.app.workspace.getActiveFile()?.basename || ''
         void navigator.clipboard.writeText(`![[${fileName}#${headingText}]]`)
         embedBtn.empty()
@@ -136,10 +148,11 @@ class HeadingToolbarWidget extends WidgetType {
     // ── Format: Title Case ────────────────────────────────────
     if (showFormat) {
       div.appendChild(makeBtn('Aa', 'Format: Title Case', '', () => {
-        const m = this.lineText.match(/^(\s{0,3}#{1,6}\s+)(.+)$/)
+        const ln = curLine()
+        const m = ln.text.match(/^(\s{0,3}#{1,6}\s+)(.+)$/)
         if (m) {
           const formatted = toTitleCase(m[2])
-          view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: m[1] + formatted } })
+          view.dispatch({ changes: { from: ln.from, to: ln.to, insert: m[1] + formatted } })
         }
       }, false))
     }
@@ -149,22 +162,24 @@ class HeadingToolbarWidget extends WidgetType {
       const hasSkip = /<!--\s*(?:skip|no-number|ah-skip)\s*-->/.test(this.lineText)
       const skipBtn = makeBtn('eye-off', hasSkip ? 'Remove skip' : 'Skip this heading',
         hasSkip ? 'ah-toolbar-skip-active' : '', () => {
+          const ln = curLine()
+          const lnHasSkip = /<!--\s*(?:skip|no-number|ah-skip)\s*-->/.test(ln.text)
           let newText: string
-          if (hasSkip) {
-            newText = this.lineText.replace(/\s*<!--\s*(?:skip|no-number|ah-skip)\s*-->\s*/g, '')
+          if (lnHasSkip) {
+            newText = ln.text.replace(/\s*<!--\s*(?:skip|no-number|ah-skip)\s*-->\s*/g, '')
           } else {
-            newText = this.lineText + ' <!-- skip -->'
+            newText = ln.text + ' <!-- skip -->'
           }
-          view.dispatch({ changes: { from: this.lineFrom, to: this.lineTo, insert: newText } })
+          view.dispatch({ changes: { from: ln.from, to: ln.to, insert: newText } })
         })
       div.appendChild(skipBtn)
     }
 
     // ── Extract Section ───────────────────────────────────────
     if (showExtract && plugin) {
-      const widgetLineFrom = this.lineFrom
       div.appendChild(makeBtn('file-output', 'Extract section to new note', '', () => {
-        const lineNumber = view.state.doc.lineAt(widgetLineFrom).number - 1
+        const ln = curLine()
+        const lineNumber = view.state.doc.lineAt(ln.from).number - 1
         void import('../commands/sectionExtractor').then(mod => {
           mod.extractSection(plugin, lineNumber)
         })
@@ -176,15 +191,33 @@ class HeadingToolbarWidget extends WidgetType {
 }
 
 export function createHeadingToolbar(getPlugin: () => AutoHeadingPlugin | null): Extension {
+  let lastToolbarLine = -1
+
   return ViewPlugin.define(
-    (view) => ({
-      decorations: buildToolbarDecos(view, getPlugin),
-      update(update: ViewUpdate) {
-        if (update.selectionSet || update.docChanged) {
-          this.decorations = buildToolbarDecos(update.view, getPlugin)
-        }
-      },
-    }),
+    (view) => {
+      const decos = buildToolbarDecos(view, getPlugin)
+      lastToolbarLine = view.state.doc.lineAt(view.state.selection.main.head).number
+      return {
+        decorations: decos,
+        update(update: ViewUpdate) {
+          const curLine = update.state.doc.lineAt(update.state.selection.main.head).number
+
+          if (update.docChanged && curLine === lastToolbarLine) {
+            // User is typing on the same line — map decorations instead of
+            // rebuilding. This prevents the toolbar widget from being destroyed
+            // and recreated on every keystroke, which caused DOM churn that
+            // contributed to cursor jump issues in headings.
+            this.decorations = this.decorations.map(update.changes)
+            return
+          }
+
+          if (update.selectionSet || update.docChanged) {
+            lastToolbarLine = curLine
+            this.decorations = buildToolbarDecos(update.view, getPlugin)
+          }
+        },
+      }
+    },
     { decorations: (v) => v.decorations }
   )
 }

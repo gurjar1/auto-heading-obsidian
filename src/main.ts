@@ -8,7 +8,7 @@
  * - Debounced auto burn-in prevents mid-typing disruption
  */
 
-import { MarkdownView, Plugin, TFile, TFolder, debounce } from 'obsidian'
+import { MarkdownView, Plugin, TFile, TFolder } from 'obsidian'
 import type { EditorView } from '@codemirror/view'
 import { AutoHeadingSettings, DEFAULT_SETTINGS, mergeSettings } from './settings/settingsTypes'
 import { AutoHeadingSettingTab } from './settings/settingsTab'
@@ -33,13 +33,18 @@ export default class AutoHeadingPlugin extends Plugin {
   private statusBar!: StatusBarManager
   private perNoteEnabledMap: Map<string, boolean> = new Map()
   private recentBurnIns: Set<string> = new Set()
+  private _lastActiveSettingsJson = ''
 
-  // Debounced auto burn-in
-  private debouncedBurnIn = debounce(
-    (filePath: string) => this.autoBurnIn(filePath),
-    2000,
-    true,
-  )
+  // Dynamic auto burn-in timer — uses this.settings.autoBurnInDelay
+  private _burnInTimer: ReturnType<typeof setTimeout> | null = null
+  private scheduleBurnIn(filePath: string): void {
+    if (this._burnInTimer != null) clearTimeout(this._burnInTimer)
+    const delay = this.settings.autoBurnInDelay || 2000
+    this._burnInTimer = setTimeout(() => {
+      this._burnInTimer = null
+      this.autoBurnIn(filePath)
+    }, delay)
+  }
 
   async onload(): Promise<void> {
     console.info('Auto Heading: Loading plugin v' + this.manifest.version)
@@ -88,17 +93,53 @@ export default class AutoHeadingPlugin extends Plugin {
 
         // Auto burn-in if applicable
         if (this.shouldAutoBurnIn(file)) {
-          this.debouncedBurnIn(file.path)
+          this.scheduleBurnIn(file.path)
         }
 
-        this.onActiveFileChange()
+        // For the active file, DON'T call refreshDecorations() synchronously.
+        // The CM6 StateField already handles doc-change rebuilds automatically.
+        // Calling refreshDecorations() here was the primary cause of cursor jumps:
+        // it interacted with Obsidian's internal editor reconciliation dispatches
+        // that fire in response to metadataCache updates, causing the browser to
+        // lose track of the caret position during typing.
+        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView)
+        if (activeView?.file?.path === file.path) {
+          // Active file: just update status bar; decorations are live via StateField.
+          // But if per-note settings might have changed (frontmatter edit),
+          // defer a full refresh to pick up the new settings safely.
+          const newEffective = this.getEffectiveSettings(file)
+          const newEnabled = this.isFileInScope(file.path)
+          const settingsJson = JSON.stringify(newEffective) + String(newEnabled)
+          if (settingsJson !== this._lastActiveSettingsJson) {
+            this._lastActiveSettingsJson = settingsJson
+            // Defer to avoid Obsidian's internal reconciliation fighting the cursor
+            setTimeout(() => this.onActiveFileChange(), 50)
+          } else {
+            this.updateStatusBar()
+          }
+        } else {
+          // Non-active file: safe to refresh (no typing conflict)
+          this.onActiveFileChange()
+        }
       }),
     )
 
-    // File open → reset state
+    // File open → reset state + snapshot settings for change detection
     this.registerEvent(
       this.app.workspace.on('file-open', (file: TFile | null) => {
-        if (file) resetFileState(file.path)
+        if (file) {
+          resetFileState(file.path)
+          // Snapshot current settings so the first metadataCache change
+          // doesn't trigger a spurious deferred refresh
+          const eff = this.getEffectiveSettings(file)
+          const en = this.isFileInScope(file.path)
+          this._lastActiveSettingsJson = JSON.stringify(eff) + String(en)
+        }
+        // Cancel any pending burn-in timer from the previous file
+        if (this._burnInTimer != null) {
+          clearTimeout(this._burnInTimer)
+          this._burnInTimer = null
+        }
         this.refreshDecorations()
       }),
     )
@@ -107,6 +148,10 @@ export default class AutoHeadingPlugin extends Plugin {
   }
 
   onunload(): void {
+    if (this._burnInTimer != null) {
+      clearTimeout(this._burnInTimer)
+      this._burnInTimer = null
+    }
     this.statusBar?.destroy()
   }
 

@@ -324,14 +324,32 @@ function needsFullRebuild(tr: Transaction): boolean {
   // Line count changed → heading may have been added or removed
   if (tr.state.doc.lines !== tr.startState.doc.lines) return true
 
-  // Check if any edited line's heading status or level changed
+  // Check if any edited line's heading status or level changed,
+  // or if the burn-in marker (⁠ U+2060) was added/removed on a heading line.
+  // The marker changes the decoration type from widget to replace, so
+  // mapped decorations would be stale without a full rebuild.
   let rebuild = false
+  let changedRangeCount = 0
   tr.changes.iterChangedRanges((fromA, _toA, fromB, _toB) => {
     if (rebuild) return
-    const oldLevel = getHeadingLevel(tr.startState.doc.lineAt(fromA).text)
-    const newLevel = getHeadingLevel(tr.state.doc.lineAt(fromB).text)
-    if (oldLevel !== newLevel) rebuild = true
+    changedRangeCount++
+    const oldLine = tr.startState.doc.lineAt(fromA)
+    const newLine = tr.state.doc.lineAt(fromB)
+    const oldLevel = getHeadingLevel(oldLine.text)
+    const newLevel = getHeadingLevel(newLine.text)
+    if (oldLevel !== newLevel) { rebuild = true; return }
+
+    // If the heading text had a burn-in marker added or removed, rebuild
+    if (oldLevel > 0) {
+      const oldHasMarker = oldLine.text.includes('\u2060')
+      const newHasMarker = newLine.text.includes('\u2060')
+      if (oldHasMarker !== newHasMarker) { rebuild = true; return }
+    }
   })
+
+  // Multi-range transaction on heading lines (typical of burn-in which
+  // modifies several headings in one transaction) → always rebuild
+  if (changedRangeCount > 1) rebuild = true
 
   return rebuild
 }
