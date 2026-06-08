@@ -152,7 +152,7 @@ class SectionStripView {
 
     // Breadcrumb
     this.breadcrumbEl.empty()
-    this.breadcrumbEl.style.display = showBreadcrumb ? '' : 'none'
+    this.breadcrumbEl.toggleClass('ah-strip-hidden', !showBreadcrumb)
     if (showBreadcrumb && currentIdx >= 0) {
       const chain = this.buildBreadcrumbChain(headings, currentIdx)
       chain.forEach((h, i) => {
@@ -166,7 +166,7 @@ class SectionStripView {
     }
 
     // Nav arrows
-    this.navEl.style.display = showNav ? '' : 'none'
+    this.navEl.toggleClass('ah-strip-hidden', !showNav)
     this.prevBtn.disabled = currentIdx <= 0
     this.nextBtn.disabled = currentIdx >= headings.length - 1
   }

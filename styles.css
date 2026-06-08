@@ -509,7 +509,8 @@
   overflow: hidden;
 }
 
-.ah-section-strip.ah-strip-hidden {
+.ah-section-strip.ah-strip-hidden,
+.ah-strip-hidden {
   display: none;
 }
 

@@ -407,7 +407,7 @@ export function registerCommands(plugin: AutoHeadingPlugin): void {
   })
 
   // ── Extract section to new note ────────────────────────────
-   plugin.addCommand({
+  plugin.addCommand({
     id: 'extract-section',
     name: 'Extract current section to new note',
     editorCheckCallback: (checking: boolean, editor: Editor) => {
