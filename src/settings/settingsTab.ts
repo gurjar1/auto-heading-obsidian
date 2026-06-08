@@ -75,8 +75,6 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     this._pendingScrollRestore = null
     containerEl.empty()
 
-    // Use Setting heading API instead of createEl('h2')
-    new Setting(containerEl).setName('General').setHeading()
 
     // ═══ MODE ═══
     sectionHeader(containerEl, 'mode', 'Mode')
@@ -373,7 +371,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName('Apply heading numbers').setDesc('Write computed numbers into headings right now. Appears in TOC and exports.')
       .addButton(b => b.setButtonText('Write Numbers to File').setCta().onClick(() => this.doBurnIn()))
     new Setting(containerEl).setName('Remove heading numbers').setDesc('Strip all numbers from headings and pause auto-numbering for this note.')
-      .addButton(b => b.setButtonText('Remove & Stop').setDestructive().onClick(() => this.doRemoveNumbers()))
+      .addButton(b => b.setButtonText('Remove & Stop').setWarning().onClick(() => this.doRemoveNumbers()))
     new Setting(containerEl).setName('Insert / Remove Table of Contents').setDesc('Toggle a ```toc block at the top of the current note.')
       .addButton(b => b.setButtonText('Toggle TOC').onClick(() => this.doToggleToc()))
 

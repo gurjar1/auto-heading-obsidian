@@ -12,7 +12,7 @@
 
 import { CachedMetadata, parseFrontMatterEntry } from 'obsidian'
 import { isValidNumberingStyle, NumberingStyle } from '../core/numberingTokens'
-import { isValidSeparator, PerNoteOverrides, SeparatorStyle } from './settingsTypes'
+import { isValidSeparator, PerNoteOverrides } from './settingsTypes'
 
 const FRONT_MATTER_KEY = 'auto-heading'
 

@@ -181,7 +181,7 @@ class HeadingToolbarWidget extends WidgetType {
         const ln = curLine()
         const lineNumber = view.state.doc.lineAt(ln.from).number - 1
         void import('../commands/sectionExtractor').then(mod => {
-          mod.extractSection(plugin, lineNumber)
+          void mod.extractSection(plugin, lineNumber)
         })
       }))
     }
