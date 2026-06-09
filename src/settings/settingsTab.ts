@@ -323,6 +323,11 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
     setDisabled(stripNav, !this.plugin.settings.stripEnabled)
     stripChildren.push(stripNav)
 
+    const stripToc = new Setting(containerEl).setName('Show TOC button').setDesc('Toggle Table of Contents button.')
+      .addToggle(t => t.setValue(this.plugin.settings.stripShowTocButton).onChange(async v => { this.plugin.settings.stripShowTocButton = v; await this.plugin.saveSettings() }))
+    setDisabled(stripToc, !this.plugin.settings.stripEnabled)
+    stripChildren.push(stripToc)
+
     // ═══ HEADING TOOLBAR ═══
     sectionHeader(containerEl, 'actions', 'Heading Inline Toolbar')
     containerEl.createEl('p', { text: 'Action buttons that appear when cursor is on a heading line.', cls: 'ah-settings-description' })

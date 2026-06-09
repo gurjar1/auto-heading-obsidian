@@ -50,8 +50,10 @@ class SectionStripView {
   private el: HTMLElement
   private breadcrumbEl: HTMLElement
   private navEl: HTMLElement
+  private tocEl: HTMLElement
   private prevBtn: HTMLButtonElement
   private nextBtn: HTMLButtonElement
+  private tocBtn: HTMLButtonElement
   private scrollHandler: () => void
 
   constructor(private view: EditorView, private getPlugin: () => AutoHeadingPlugin | null) {
@@ -60,6 +62,7 @@ class SectionStripView {
 
     this.breadcrumbEl = this.el.createDiv({ cls: 'ah-strip-breadcrumb' })
     this.navEl = this.el.createDiv({ cls: 'ah-strip-nav' })
+    this.tocEl = this.el.createDiv({ cls: 'ah-strip-nav' })
 
     this.prevBtn = activeDocument.createElement('button')
     this.prevBtn.className = 'ah-strip-btn'
@@ -75,13 +78,13 @@ class SectionStripView {
     this.nextBtn.addEventListener('click', () => this.navigateNext())
     this.navEl.appendChild(this.nextBtn)
 
-    // TOC toggle button
-    const tocBtn = activeDocument.createElement('button')
-    tocBtn.className = 'ah-strip-btn ah-strip-toc-btn'
-    tocBtn.textContent = '☰'
-    tocBtn.title = 'Toggle Table of Contents'
-    tocBtn.addEventListener('click', () => this.toggleToc())
-    this.navEl.appendChild(tocBtn)
+    // TOC toggle button (separate container for independent toggle)
+    this.tocBtn = activeDocument.createElement('button')
+    this.tocBtn.className = 'ah-strip-btn ah-strip-toc-btn'
+    this.tocBtn.textContent = '☰'
+    this.tocBtn.title = 'Toggle Table of Contents'
+    this.tocBtn.addEventListener('click', () => this.toggleToc())
+    this.tocEl.appendChild(this.tocBtn)
 
     // Remove any existing strips to prevent duplicates on plugin recreation
     view.dom.querySelectorAll('.ah-section-strip').forEach(el => el.remove())
@@ -149,6 +152,7 @@ class SectionStripView {
 
     const showBreadcrumb = plugin.settings.stripShowBreadcrumb !== false
     const showNav = plugin.settings.stripShowNavArrows !== false
+    const showToc = plugin.settings.stripShowTocButton !== false
 
     // Breadcrumb
     this.breadcrumbEl.empty()
@@ -169,6 +173,9 @@ class SectionStripView {
     this.navEl.toggleClass('ah-strip-hidden', !showNav)
     this.prevBtn.disabled = currentIdx <= 0
     this.nextBtn.disabled = currentIdx >= headings.length - 1
+
+    // TOC button
+    this.tocEl.toggleClass('ah-strip-hidden', !showToc)
   }
 
   private buildBreadcrumbChain(headings: SimpleHeading[], idx: number): SimpleHeading[] {

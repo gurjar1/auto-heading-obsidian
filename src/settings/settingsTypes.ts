@@ -79,6 +79,8 @@ export interface AutoHeadingSettings {
   stripUpdateMode: 'cursor' | 'scroll'
   /** Show previous/next navigation arrows */
   stripShowNavArrows: boolean
+  /** Show TOC toggle button in breadcrumb bar */
+  stripShowTocButton: boolean
 
   // ── Heading Inline Toolbar (Cluster C) ───────────────────────
   /** Show inline action toolbar on heading lines */
@@ -150,6 +152,7 @@ export const DEFAULT_SETTINGS: Readonly<AutoHeadingSettings> = {
   stripShowBreadcrumb: true,
   stripUpdateMode: 'scroll',
   stripShowNavArrows: true,
+  stripShowTocButton: true,
 
   // Heading Toolbar defaults
   toolbarEnabled: true,
