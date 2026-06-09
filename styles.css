@@ -431,8 +431,8 @@
 /* ─── Cluster A: Interactive Heading Gutter ───────────────── */
 
 .ah-heading-gutter {
-  width: 28px;
-  min-width: 28px;
+  width: 20px;
+  min-width: 20px;
 }
 
 
@@ -442,7 +442,7 @@
   gap: 1px;
   cursor: default;
   height: 100%;
-  padding: 0 2px;
+  padding: 0 1px;
 }
 
 .ah-gutter-chevron {
@@ -472,7 +472,7 @@
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
-  padding: 2px 4px;
+  padding: 1px 2px;
   border-radius: 3px;
   user-select: none;
   letter-spacing: -0.02em;
@@ -512,7 +512,7 @@
 
 .ah-section-strip.ah-strip-hidden,
 .ah-strip-hidden {
-  display: none;
+  display: none !important;
 }
 
 .ah-strip-breadcrumb {

@@ -65,6 +65,8 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
   plugin: AutoHeadingPlugin
   /** Scroll position to restore after a rebuild; null means fresh open */
   private _pendingScrollRestore: number | null = null
+  /** Wrapper element for the scope card, used by add/remove/clear methods */
+  private _scopeCardWrapper: HTMLElement | null = null
 
   constructor(app: App, plugin: AutoHeadingPlugin) { super(app, plugin); this.plugin = plugin }
 
@@ -78,37 +80,45 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
 
     // ═══ MODE ═══
     sectionHeader(containerEl, 'mode', 'Mode')
+    const modeWrapper = containerEl.createDiv()
+    const renderModeChildren = () => {
+      modeWrapper.empty()
+      if (this.plugin.settings.mode === 'burn-in') {
+        // Build info box using DOM API instead of innerHTML
+        const info = modeWrapper.createEl('div', { cls: 'ah-settings-info-box' })
+        info.createEl('strong', { text: 'Auto-number' })
+        info.appendText(' writes numbers into your file. Numbers appear in TOC, PDF, Publish.')
+        info.createEl('br')
+        info.appendText('Numbers auto-update after edits (configurable delay). ')
+        info.createEl('strong', { text: 'Undo:' })
+        info.appendText(' ')
+        info.createEl('code', { text: 'Ctrl+Z' })
+
+        new Setting(modeWrapper).setName('Auto-number delay').setDesc('Wait time after editing before numbers update.')
+          .addDropdown(dd => {
+            for (const v of [0.5, 1, 1.5, 2, 2.5, 3, 4, 5])
+              dd.addOption(String(v * 1000), `${v} second${v !== 1 ? 's' : ''}`)
+            dd.setValue(String(this.plugin.settings.autoBurnInDelay))
+            dd.onChange(async v => { this.plugin.settings.autoBurnInDelay = parseInt(v); await this.plugin.saveSettings() })
+          })
+        new Setting(modeWrapper).setName('Show live preview').setDesc('Also show decoration numbers while typing (for instant feedback).')
+          .addToggle(t => t.setValue(this.plugin.settings.showDecorationsInBurnInMode)
+            .onChange(async v => { this.plugin.settings.showDecorationsInBurnInMode = v; await this.plugin.saveSettings() }))
+      }
+    }
+
     new Setting(containerEl).setName('Numbering mode').setDesc('How heading numbers are applied.')
       .addDropdown(dd => {
         dd.addOption('burn-in', 'Auto-number (writes to file)')
         dd.addOption('decoration', 'Visual only (files stay clean)')
         dd.addOption('off', 'Off')
         dd.setValue(this.plugin.settings.mode)
-        dd.onChange(async v => { this.plugin.settings.mode = v as NumberingMode; await this.plugin.saveSettings(); this.rebuild(scrollEl) })
+        dd.onChange(async v => { this.plugin.settings.mode = v as NumberingMode; await this.plugin.saveSettings(); renderModeChildren() })
       })
 
-    if (this.plugin.settings.mode === 'burn-in') {
-      // Build info box using DOM API instead of innerHTML
-      const info = containerEl.createEl('div', { cls: 'ah-settings-info-box' })
-      info.createEl('strong', { text: 'Auto-number' })
-      info.appendText(' writes numbers into your file. Numbers appear in TOC, PDF, Publish.')
-      info.createEl('br')
-      info.appendText('Numbers auto-update after edits (configurable delay). ')
-      info.createEl('strong', { text: 'Undo:' })
-      info.appendText(' ')
-      info.createEl('code', { text: 'Ctrl+Z' })
-
-      new Setting(containerEl).setName('Auto-number delay').setDesc('Wait time after editing before numbers update.')
-        .addDropdown(dd => {
-          for (const v of [0.5, 1, 1.5, 2, 2.5, 3, 4, 5])
-            dd.addOption(String(v * 1000), `${v} second${v !== 1 ? 's' : ''}`)
-          dd.setValue(String(this.plugin.settings.autoBurnInDelay))
-          dd.onChange(async v => { this.plugin.settings.autoBurnInDelay = parseInt(v); await this.plugin.saveSettings() })
-        })
-      new Setting(containerEl).setName('Show live preview').setDesc('Also show decoration numbers while typing (for instant feedback).')
-        .addToggle(t => t.setValue(this.plugin.settings.showDecorationsInBurnInMode)
-          .onChange(async v => { this.plugin.settings.showDecorationsInBurnInMode = v; await this.plugin.saveSettings() }))
-    }
+    // Move wrapper after the dropdown
+    containerEl.appendChild(modeWrapper)
+    renderModeChildren()
 
     // ═══ SCOPE ═══
     sectionHeader(containerEl, 'scope', 'Which Notes to Number')
@@ -116,17 +126,25 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName('All notes in vault').setDesc('Number every note automatically.')
       .addToggle(t => t.setValue(this.plugin.settings.scopeAll)
-        .onChange(async v => { this.plugin.settings.scopeAll = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
+        .onChange(async v => { this.plugin.settings.scopeAll = v; await this.plugin.saveSettings() }))
 
     new Setting(containerEl).setName('Notes with front matter').setDesc('Notes containing auto-heading: auto')
       .addToggle(t => t.setValue(this.plugin.settings.scopeFrontmatter)
         .onChange(async v => { this.plugin.settings.scopeFrontmatter = v; await this.plugin.saveSettings() }))
 
+    // Scope selected: use a wrapper div so we can show/hide the card without a full rebuild
+    this._scopeCardWrapper = containerEl.createDiv()
     new Setting(containerEl).setName('Selected folders / notes').setDesc('Only notes in the list below.')
       .addToggle(t => t.setValue(this.plugin.settings.scopeSelected)
-        .onChange(async v => { this.plugin.settings.scopeSelected = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
+        .onChange(async v => {
+          this.plugin.settings.scopeSelected = v; await this.plugin.saveSettings()
+          this._scopeCardWrapper!.empty()
+          if (v) this.renderScopeCard(this._scopeCardWrapper!)
+        }))
+    // Move the scope card wrapper after the toggle setting (insertBefore moves it)
+    containerEl.appendChild(this._scopeCardWrapper)
 
-    if (this.plugin.settings.scopeSelected) this.renderScopeCard(containerEl)
+    if (this.plugin.settings.scopeSelected) this.renderScopeCard(this._scopeCardWrapper)
 
     // ═══ NUMBERING OPTIONS ═══
     sectionHeader(containerEl, 'numbering', 'Numbering Options')
@@ -138,16 +156,21 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
         await this.plugin.saveSettings()
         // Force renumber so skip changes take effect immediately
         this.plugin.triggerBurnIn()
-        this.rebuild(scrollEl)
+        renderFirstLevel()
       }))
 
-    new Setting(containerEl).setName('First heading level').setDesc('Start numbering from this level.')
-      .addDropdown(dd => {
-        const min = this.plugin.settings.skipH1 ? 2 : 1
-        for (let i = min; i <= 6; i++) dd.addOption(String(i), `H${i} (${'#'.repeat(i)})`)
-        dd.setValue(String(Math.max(this.plugin.settings.firstLevel, min)))
-        dd.onChange(async v => { this.plugin.settings.firstLevel = parseInt(v); await this.plugin.saveSettings() })
-      })
+    const firstLevelWrapper = containerEl.createDiv()
+    const renderFirstLevel = () => {
+      firstLevelWrapper.empty()
+      new Setting(firstLevelWrapper).setName('First heading level').setDesc('Start numbering from this level.')
+        .addDropdown(dd => {
+          const min = this.plugin.settings.skipH1 ? 2 : 1
+          for (let i = min; i <= 6; i++) dd.addOption(String(i), `H${i} (${'#'.repeat(i)})`)
+          dd.setValue(String(Math.max(this.plugin.settings.firstLevel, min)))
+          dd.onChange(async v => { this.plugin.settings.firstLevel = parseInt(v); await this.plugin.saveSettings() })
+        })
+    }
+    renderFirstLevel()
 
     new Setting(containerEl).setName('Maximum heading level').setDesc('Stop numbering at this level.')
       .addDropdown(dd => {
@@ -203,24 +226,24 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
       })
 
     // ── Heading Indentation ──
-    new Setting(containerEl).setName('Visual heading indentation').setDesc('Indent heading lines based on their level to create a visual tree.')
-      .addToggle(t => t.setValue(this.plugin.settings.headingIndent)
-        .onChange(async v => { this.plugin.settings.headingIndent = v; await this.plugin.saveSettings(); this.rebuild(scrollEl) }))
+    const indentWrapper = containerEl.createDiv()
+    const renderIndentChildren = () => {
+      indentWrapper.empty()
+      if (!this.plugin.settings.headingIndent) return
 
-    if (this.plugin.settings.headingIndent) {
-      new Setting(containerEl).setName('Indent size').setDesc('Pixels of indentation per heading level.')
+      new Setting(indentWrapper).setName('Indent size').setDesc('Pixels of indentation per heading level.')
         .addDropdown(dd => {
           for (const v of [8, 12, 16, 20, 24, 28, 32, 40]) dd.addOption(String(v), `${v}px`)
           dd.setValue(String(this.plugin.settings.headingIndentSize))
-          dd.onChange(async v => { this.plugin.settings.headingIndentSize = parseInt(v); await this.plugin.saveSettings(); this.rebuild(scrollEl) })
+          dd.onChange(async v => { this.plugin.settings.headingIndentSize = parseInt(v); await this.plugin.saveSettings(); renderIndentChildren() })
         })
 
-      new Setting(containerEl).setName('Show indent guides').setDesc('Draw subtle vertical lines alongside indented headings.')
+      new Setting(indentWrapper).setName('Show indent guides').setDesc('Draw subtle vertical lines alongside indented headings.')
         .addToggle(t => t.setValue(this.plugin.settings.headingIndentGuides)
           .onChange(async v => { this.plugin.settings.headingIndentGuides = v; await this.plugin.saveSettings() }))
 
       // Live preview
-      const previewBox = containerEl.createEl('div', { cls: 'ah-indent-preview' })
+      const previewBox = indentWrapper.createEl('div', { cls: 'ah-indent-preview' })
       const indentPx = this.plugin.settings.headingIndentSize
       const previewLines = [
         { label: '# Title', level: 1 },
@@ -237,6 +260,14 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
         line.style.paddingLeft = `${indent}px`
       }
     }
+
+    new Setting(containerEl).setName('Visual heading indentation').setDesc('Indent heading lines based on their level to create a visual tree.')
+      .addToggle(t => t.setValue(this.plugin.settings.headingIndent)
+        .onChange(async v => { this.plugin.settings.headingIndent = v; await this.plugin.saveSettings(); renderIndentChildren() }))
+
+    // Move wrapper after the toggle
+    containerEl.appendChild(indentWrapper)
+    renderIndentChildren()
 
     // ═══ HEADING GUTTER ═══
     sectionHeader(containerEl, 'appearance', 'Heading Gutter')
@@ -500,14 +531,14 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
   private async removeScopePath(idx: number, _container: HTMLElement): Promise<void> {
     this.plugin.settings.scopePaths.splice(idx, 1)
     await this.plugin.saveSettings()
-    this.rebuild(this.containerEl.parentElement)
+    if (this._scopeCardWrapper) { this._scopeCardWrapper.empty(); this.renderScopeCard(this._scopeCardWrapper) }
   }
 
   private async addScopePath(path: string, _container: HTMLElement): Promise<void> {
     if (!this.plugin.settings.scopePaths.includes(path)) {
       this.plugin.settings.scopePaths.push(path)
       await this.plugin.saveSettings()
-      this.rebuild(this.containerEl.parentElement)
+      if (this._scopeCardWrapper) { this._scopeCardWrapper.empty(); this.renderScopeCard(this._scopeCardWrapper) }
     } else {
       new Notice('Already in list.')
     }
@@ -516,7 +547,7 @@ export class AutoHeadingSettingTab extends PluginSettingTab {
   private async clearScopePaths(_container: HTMLElement): Promise<void> {
     this.plugin.settings.scopePaths = []
     await this.plugin.saveSettings()
-    this.rebuild(this.containerEl.parentElement)
+    if (this._scopeCardWrapper) { this._scopeCardWrapper.empty(); this.renderScopeCard(this._scopeCardWrapper) }
   }
 
   private doBurnIn(): void {
