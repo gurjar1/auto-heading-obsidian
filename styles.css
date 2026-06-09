@@ -435,13 +435,6 @@
   min-width: 28px;
 }
 
-.ah-heading-gutter.ah-gutter-hidden {
-  width: 0;
-  min-width: 0;
-  overflow: hidden;
-  padding: 0;
-  border: none;
-}
 
 .ah-gutter-marker {
   display: flex;

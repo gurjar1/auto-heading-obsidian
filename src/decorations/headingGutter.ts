@@ -4,18 +4,16 @@
  * Shows level badges (H1, H2, H3) in the editor gutter.
  * Display-only — no fold interaction.
  *
- * The gutter column is only visible when BOTH conditions are met:
- *   1. gutterEnabled is true in plugin settings
- *   2. The current note is in scope (enabled via settings or front matter)
- *
- * When either condition is false, the gutter column collapses to zero width
- * via a CSS class toggle so it doesn't consume horizontal space.
+ * Uses a Compartment to dynamically add/remove the gutter extension.
+ * When the gutter is not needed (gutterEnabled=false or note not in scope),
+ * the Compartment is reconfigured to [] removing the gutter DOM column entirely.
+ * This prevents the empty 28px column that CodeMirror's gutter() always creates.
  */
 
-import { gutter, GutterMarker, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view'
+import { gutter, GutterMarker, EditorView } from '@codemirror/view'
 import { syntaxTree } from '@codemirror/language'
+import { Compartment } from '@codemirror/state'
 import type { Extension } from '@codemirror/state'
-import { MarkdownView } from 'obsidian'
 import type AutoHeadingPlugin from '../main'
 
 class HeadingGutterMarker extends GutterMarker {
@@ -53,39 +51,35 @@ function countWords(text: string): number {
   return t.length === 0 ? 0 : t.split(/\s+/).length
 }
 
-/** Check if the gutter should be visible for the current note */
-function isGutterActive(getPlugin: () => AutoHeadingPlugin | null): boolean {
-  const plugin = getPlugin()
-  if (!plugin) return false
-  if (!plugin.settings.gutterEnabled) return false
+/** Compartment for dynamically enabling/disabling the gutter column */
+export const gutterCompartment = new Compartment()
 
-  // Check if the current note is in scope
-  const view = plugin.app.workspace.getActiveViewOfType(MarkdownView)
-  if (!view?.file) return false
-  return plugin.isFileInScope(view.file.path)
+/** Cached gutter extension (the actual gutter, without compartment wrapper) */
+let _gutterExt: Extension | null = null
+
+/** Get the cached gutter extension for compartment reconfiguration */
+export function getGutterExtension(): Extension | null {
+  return _gutterExt
 }
 
-/** Toggle the 'ah-gutter-hidden' class on the gutter element based on settings */
-function syncGutterVisibility(view: EditorView, getPlugin: () => AutoHeadingPlugin | null): void {
-  const active = isGutterActive(getPlugin)
-  const gutterEl = view.dom.querySelector('.ah-heading-gutter')
-  if (gutterEl) {
-    gutterEl.classList.toggle('ah-gutter-hidden', !active)
-  }
-}
-
+/**
+ * Create the heading gutter system.
+ *
+ * Returns a Compartment initially set to [] (no gutter column).
+ * The plugin's refreshDecorations() reconfigures the compartment
+ * to include the gutter extension only when gutterEnabled=true
+ * AND the note is in scope.
+ */
 export function createHeadingGutter(getPlugin: () => AutoHeadingPlugin | null): Extension {
-  const gutterExt = gutter({
+  _gutterExt = gutter({
     class: 'ah-heading-gutter',
     lineMarker(view, line) {
       const plugin = getPlugin()
       if (!plugin) return null
-      if (!plugin.settings.gutterEnabled) return null
 
-      // Also check if the current note is in scope
-      const mdView = plugin.app.workspace.getActiveViewOfType(MarkdownView)
-      if (!mdView?.file) return null
-      if (!plugin.isFileInScope(mdView.file.path)) return null
+      // No gutterEnabled / scope checks here — the gutter extension
+      // is only present when the Compartment is configured to include it,
+      // which only happens when gutterEnabled=true AND note is in scope.
 
       const text = view.state.doc.lineAt(line.from).text
       const m = text.match(/^\s{0,3}(#{1,6})\s/)
@@ -120,19 +114,7 @@ export function createHeadingGutter(getPlugin: () => AutoHeadingPlugin | null): 
     },
   })
 
-  // ViewPlugin to toggle the gutter column visibility based on settings.
-  // Without this, CodeMirror always reserves 28px for the gutter column
-  // even when gutterEnabled is false and no markers are shown.
-  const visibilityPlugin = ViewPlugin.define(
-    (view) => {
-      syncGutterVisibility(view, getPlugin)
-      return {
-        update(update: ViewUpdate) {
-          syncGutterVisibility(update.view, getPlugin)
-        },
-      }
-    },
-  )
-
-  return [gutterExt, visibilityPlugin]
+  // Initially empty — no gutter column at all.
+  // refreshDecorations() will reconfigure when appropriate.
+  return gutterCompartment.of([])
 }

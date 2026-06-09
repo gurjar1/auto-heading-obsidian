@@ -24,7 +24,7 @@ import { registerContextMenu } from './ui/contextMenu'
 import { StatusBarManager } from './ui/statusBar'
 import { burnInNumbers } from './burnIn/burnInEngine'
 import { registerTocProcessor } from './toc/tocProcessor'
-import { createHeadingGutter } from './decorations/headingGutter'
+import { createHeadingGutter, gutterCompartment, getGutterExtension } from './decorations/headingGutter'
 import { createHeadingToolbar } from './decorations/headingToolbar'
 import { createSectionStrip } from './ui/sectionStrip'
 
@@ -34,6 +34,8 @@ export default class AutoHeadingPlugin extends Plugin {
   private perNoteEnabledMap: Map<string, boolean> = new Map()
   private recentBurnIns: Set<string> = new Set()
   private _lastActiveSettingsJson = ''
+  /** Track gutter visibility per EditorView to avoid unnecessary dispatches */
+  private _gutterShowMap = new WeakMap<EditorView, boolean>()
 
   // Dynamic auto burn-in timer — uses this.settings.autoBurnInDelay
   private _burnInTimer: number | null = null
@@ -315,18 +317,39 @@ export default class AutoHeadingPlugin extends Plugin {
     const settingsChanged = updateDecorationSettings(effectiveSettings, isEnabled)
     updatePostProcessorSettings(effectiveSettings, isEnabled)
 
-    // Only force editor rebuilds when settings/scope actually changed.
-    // The StateField already handles doc-change rebuilds automatically.
-    // Unnecessary async dispatches during typing were the primary cause
-    // of cursor jumping to the start of the line.
-    if (settingsChanged) {
-      this.app.workspace.iterateAllLeaves((leaf) => {
-        if (leaf.view instanceof MarkdownView) {
-          const cmView = (leaf.view.editor as unknown as { cm: EditorView }).cm
-          if (cmView) cmView.dispatch({})
+    // Update gutter Compartment per-view and dispatch settings changes.
+    // The gutter column is completely removed (via Compartment.reconfigure([]))
+    // when gutterEnabled is false or the note is not in scope.
+    // This prevents the persistent empty 28px column CodeMirror always creates.
+    const gutterExt = getGutterExtension()
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (leaf.view instanceof MarkdownView) {
+        const cmView = (leaf.view.editor as unknown as { cm: EditorView }).cm
+        if (!cmView) return
+
+        // Determine gutter visibility for this specific leaf's file
+        const leafFile = (leaf.view as MarkdownView).file
+        const showGutter = this.settings.gutterEnabled &&
+                          leafFile != null &&
+                          this.isFileInScope(leafFile.path)
+
+        const wasShowing = this._gutterShowMap.get(cmView)
+        const gutterChanged = wasShowing !== showGutter
+
+        if (gutterChanged) {
+          // Gutter visibility changed — reconfigure the compartment
+          this._gutterShowMap.set(cmView, showGutter)
+          cmView.dispatch({
+            effects: gutterCompartment.reconfigure(
+              showGutter && gutterExt ? gutterExt : []
+            )
+          })
+        } else if (settingsChanged) {
+          // No gutter change but decoration settings changed — trigger StateField update
+          cmView.dispatch({})
         }
-      })
-    }
+      }
+    })
 
     // Set indent size CSS custom property on root for all views
     if (effectiveSettings.headingIndent) {
