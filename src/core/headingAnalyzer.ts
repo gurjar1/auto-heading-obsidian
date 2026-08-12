@@ -16,6 +16,7 @@ import {
   startAtToken,
 } from './numberingTokens'
 import { AutoHeadingSettings } from '../settings/settingsTypes'
+import { findFrontMatterEndLine } from './frontMatter'
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -124,9 +125,18 @@ export function analyzeHeadings(
 
   // Phase 1: Gather raw info and determine skip status
   const rawAnalysis: AnalyzedHeading[] = []
+  const lastHeadingLine = headings.reduce(
+    (last, heading) => Math.max(last, heading.position.start.line),
+    0,
+  )
+  const frontMatterEndLine = findFrontMatterEndLine(
+    getLine,
+    lastHeadingLine + 1,
+  )
 
   for (const heading of headings) {
     const lineNumber = heading.position.start.line
+    if (frontMatterEndLine >= 0 && lineNumber <= frontMatterEndLine) continue
     const lineText = getLine(lineNumber)
     if (!lineText) continue
 

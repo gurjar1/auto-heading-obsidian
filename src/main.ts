@@ -13,10 +13,9 @@ import type { EditorView } from '@codemirror/view'
 import { AutoHeadingSettings, DEFAULT_SETTINGS, mergeSettings } from './settings/settingsTypes'
 import { AutoHeadingSettingTab } from './settings/settingsTab'
 import { parsePerNoteSettings } from './settings/perNoteSettings'
-import { getEditorExtensions, updateDecorationSettings } from './decorations/editorExtension'
+import { getDecorationSettingsEffect, getEditorExtensions } from './decorations/editorExtension'
 import {
   createHeadingPostProcessor,
-  updatePostProcessorSettings,
   resetFileState,
   updateFileAnalysis,
 } from './decorations/postProcessor'
@@ -38,6 +37,8 @@ export default class AutoHeadingPlugin extends Plugin {
   private _lastActiveSettingsJson = ''
   /** Track gutter visibility per EditorView to avoid unnecessary dispatches */
   private _gutterShowMap = new WeakMap<EditorView, boolean>()
+  /** Avoid re-reading unchanged files on focus-only refreshes. */
+  private _analysisSignatures = new Map<string, string>()
 
   // Dynamic auto burn-in timer — uses this.settings.autoBurnInDelay
   private _burnInTimer: number | null = null
@@ -87,6 +88,7 @@ export default class AutoHeadingPlugin extends Plugin {
     this.registerEvent(
       this.app.metadataCache.on('changed', (file: TFile) => {
         resetFileState(file.path)
+        this._analysisSignatures.delete(file.path)
 
         // Recompute heading analysis for reading-mode post-processor
         void this.computeFileAnalysis(file)
@@ -136,6 +138,7 @@ export default class AutoHeadingPlugin extends Plugin {
       this.app.workspace.on('file-open', (file: TFile | null) => {
         if (file) {
           resetFileState(file.path)
+          this._analysisSignatures.delete(file.path)
           // Snapshot current settings so the first metadataCache change
           // doesn't trigger a spurious deferred refresh
           const eff = this.getEffectiveSettings(file)
@@ -161,6 +164,7 @@ export default class AutoHeadingPlugin extends Plugin {
       window.clearTimeout(this._burnInTimer)
       this._burnInTimer = null
     }
+    this._analysisSignatures.clear()
     this.statusBar?.destroy()
   }
 
@@ -247,8 +251,7 @@ export default class AutoHeadingPlugin extends Plugin {
 
   getEffectiveSettings(file: TFile): AutoHeadingSettings {
     const metadata = this.app.metadataCache.getFileCache(file)
-    if (!metadata) return { ...this.settings }
-    const overrides = parsePerNoteSettings(metadata)
+    const overrides = metadata ? parsePerNoteSettings(metadata) : null
     const merged = mergeSettings(this.settings, overrides)
     merged.enabled = this.isFileInScope(file.path)
 
@@ -304,91 +307,119 @@ export default class AutoHeadingPlugin extends Plugin {
    * reading-mode post-processor. Uses cachedRead for file content,
    * mirroring the proven approach in tocProcessor.ts.
    */
-  private async computeFileAnalysis(file: TFile): Promise<void> {
+  private async computeFileAnalysis(
+    file: TFile | null,
+    settings = file ? this.getEffectiveSettings(file) : null,
+    enabled = file ? this.isDecorationEnabled(file, settings) : false,
+  ): Promise<void> {
+    if (!file) return
+    if (!settings) return
+
+    const signature = `${JSON.stringify(settings)}:${enabled}`
+    if (this._analysisSignatures.get(file.path) === signature) return
+    this._analysisSignatures.set(file.path, signature)
+
     const metadata = this.app.metadataCache.getFileCache(file)
     if (!metadata?.headings || metadata.headings.length === 0) {
-      updateFileAnalysis(file.path, { headings: [], totalCount: 0, numberedCount: 0, skippedCount: 0 })
+      updateFileAnalysis(
+        file.path,
+        { headings: [], totalCount: 0, numberedCount: 0, skippedCount: 0 },
+        settings,
+        enabled,
+      )
       return
     }
     const content = await this.app.vault.cachedRead(file)
+    if (this._analysisSignatures.get(file.path) !== signature) return
     const lines = content.split('\n')
     const getLine = (n: number) => lines[n] || ''
-    const settings = this.getEffectiveSettings(file)
     const analysis = analyzeHeadings(metadata.headings, getLine, settings)
-    updateFileAnalysis(file.path, analysis)
+    updateFileAnalysis(file.path, analysis, settings, enabled)
   }
 
   // ─── Decoration Refresh ────────────────────────────────────
 
+  private isDecorationEnabled(
+    file: TFile | null,
+    settings = file ? this.getEffectiveSettings(file) : null,
+  ): boolean {
+    if (!file || !settings?.enabled) return false
+    if (settings.mode === 'decoration') return true
+    return settings.mode === 'burn-in' && settings.showDecorationsInBurnInMode
+  }
+
   refreshDecorations(): void {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView)
-    let effectiveSettings = this.settings
-    let isEnabled = false
-
-    if (view?.file) {
-      effectiveSettings = this.getEffectiveSettings(view.file)
-      isEnabled = this.isFileInScope(view.file.path)
-
-      // In burn-in mode, also show decorations for immediate feedback
-      if (this.settings.mode === 'burn-in' && isEnabled) {
-        isEnabled = this.settings.showDecorationsInBurnInMode
-      }
-
-      // In decoration mode, always show decorations if in scope
-      if (this.settings.mode === 'decoration' && this.isFileInScope(view.file.path)) {
-        isEnabled = true
-      }
-    }
-
-    const settingsChanged = updateDecorationSettings(effectiveSettings, isEnabled)
-    updatePostProcessorSettings(effectiveSettings, isEnabled)
-
-    // Pre-compute heading analysis for reading-mode post-processor
-    if (view?.file && isEnabled) {
-      void this.computeFileAnalysis(view.file)
-    }
-
     // Update gutter Compartment per-view and dispatch settings changes.
     // The gutter column is completely removed (via Compartment.reconfigure([]))
     // when gutterEnabled is false or the note is not in scope.
     // This prevents the persistent empty 28px column CodeMirror always creates.
     const gutterExt = getGutterExtension()
+    const openFiles = new Map<string, {
+      file: TFile
+      settings: AutoHeadingSettings
+      enabled: boolean
+    }>()
     this.app.workspace.iterateAllLeaves((leaf) => {
       if (leaf.view instanceof MarkdownView) {
+        const leafFile = (leaf.view as MarkdownView).file
+        let effectiveSettings = { ...this.settings }
+        let isEnabled = false
+        if (leafFile) {
+          const existing = openFiles.get(leafFile.path)
+          if (existing) {
+            effectiveSettings = existing.settings
+            isEnabled = existing.enabled
+          } else {
+            effectiveSettings = this.getEffectiveSettings(leafFile)
+            isEnabled = this.isDecorationEnabled(leafFile, effectiveSettings)
+            openFiles.set(leafFile.path, {
+              file: leafFile,
+              settings: effectiveSettings,
+              enabled: isEnabled,
+            })
+          }
+        }
+
         const cmView = (leaf.view.editor as unknown as { cm: EditorView }).cm
         if (!cmView) return
 
+        const decorationEffect = getDecorationSettingsEffect(
+          cmView.state,
+          effectiveSettings,
+          isEnabled,
+        )
+
         // Determine gutter visibility for this specific leaf's file
-        const leafFile = (leaf.view as MarkdownView).file
         const showGutter = this.settings.gutterEnabled &&
                           leafFile != null &&
                           this.isFileInScope(leafFile.path)
 
         const wasShowing = this._gutterShowMap.get(cmView)
         const gutterChanged = wasShowing !== showGutter
+        const effects = []
 
         if (gutterChanged) {
           // Gutter visibility changed — reconfigure the compartment
           this._gutterShowMap.set(cmView, showGutter)
-          cmView.dispatch({
-            effects: gutterCompartment.reconfigure(
-              showGutter && gutterExt ? gutterExt : []
-            )
-          })
-        } else if (settingsChanged) {
-          // No gutter change but decoration settings changed — trigger StateField update
-          cmView.dispatch({})
+          effects.push(gutterCompartment.reconfigure(
+            showGutter && gutterExt ? gutterExt : [],
+          ))
+        }
+
+        if (decorationEffect) effects.push(decorationEffect)
+        if (effects.length > 0) cmView.dispatch({ effects })
+
+        const indentSize = `${effectiveSettings.headingIndentSize}px`
+        if (cmView.dom.style.getPropertyValue('--ah-indent-size') !== indentSize) {
+          cmView.dom.style.setProperty('--ah-indent-size', indentSize)
         }
       }
     })
 
-    // Set indent size CSS custom property on root for all views
-    if (effectiveSettings.headingIndent) {
-      activeDocument.documentElement.style.setProperty(
-        '--ah-indent-size',
-        `${effectiveSettings.headingIndentSize}px`,
-      )
-    }
+    // Keep reading/pinned panes isolated by computing state for every visible file.
+    openFiles.forEach(({ file, settings, enabled }) => {
+      void this.computeFileAnalysis(file, settings, enabled)
+    })
 
     this.updateStatusBar()
   }

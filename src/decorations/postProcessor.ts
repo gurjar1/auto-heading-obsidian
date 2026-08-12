@@ -19,24 +19,74 @@ import { AnalyzedHeading, HeadingAnalysis } from '../core/headingAnalyzer'
 
 // ─── Shared State ─────────────────────────────────────────────────────
 
-// Pre-computed heading analyses keyed by file sourcePath.
-// Updated from main.ts whenever a file opens or its metadata changes.
-const fileAnalyses = new Map<string, HeadingAnalysis>()
+interface FileDecorationState {
+  analysis: HeadingAnalysis
+  settings: AutoHeadingSettings
+  enabled: boolean
+}
 
-let currentSettings: AutoHeadingSettings | null = null
-let isEnabled = true
+// Per-file state prevents one reading or pinned pane from inheriting another
+// pane's settings when focus changes.
+const fileStates = new Map<string, FileDecorationState>()
 
-export function updatePostProcessorSettings(settings: AutoHeadingSettings, enabled: boolean): void {
-  currentSettings = settings
-  isEnabled = enabled
+interface MutableTextNode {
+  textContent: string | null
+}
+
+/** Remove a source prefix even when Obsidian inserts DOM nodes before it. */
+export function stripLeadingManualNumber(
+  textNodes: MutableTextNode[],
+  sourcePrefix: string,
+): boolean {
+  const firstContentNode = textNodes.findIndex(
+    node => (node.textContent || '').trim().length > 0,
+  )
+  if (firstContentNode < 0) return false
+
+  const combinedText = textNodes
+    .slice(firstContentNode)
+    .map(node => node.textContent || '')
+    .join('')
+  const withoutMarker = sourcePrefix.replace(/^\u2060/, '')
+  const prefix = [sourcePrefix, withoutMarker]
+    .filter((candidate, index, all) => candidate.length > 0 && all.indexOf(candidate) === index)
+    .find(candidate => combinedText.startsWith(candidate))
+  if (!prefix) return false
+
+  let remaining = prefix.length
+  for (let index = firstContentNode; index < textNodes.length && remaining > 0; index++) {
+    const node = textNodes[index]
+    const text = node.textContent || ''
+    const removed = Math.min(text.length, remaining)
+    node.textContent = text.substring(removed)
+    remaining -= removed
+  }
+
+  return remaining === 0
+}
+
+function getTextNodes(element: HTMLElement): Text[] {
+  const nodes: Text[] = []
+  const walker = activeDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  let node = walker.nextNode()
+  while (node) {
+    nodes.push(node as Text)
+    node = walker.nextNode()
+  }
+  return nodes
 }
 
 /**
  * Update the pre-computed heading analysis for a file.
  * Called from main.ts when a file is opened or its metadata changes.
  */
-export function updateFileAnalysis(sourcePath: string, analysis: HeadingAnalysis): void {
-  fileAnalyses.set(sourcePath, analysis)
+export function updateFileAnalysis(
+  sourcePath: string,
+  analysis: HeadingAnalysis,
+  settings: AutoHeadingSettings,
+  enabled: boolean,
+): void {
+  fileStates.set(sourcePath, { analysis, settings, enabled })
 }
 
 /**
@@ -44,14 +94,14 @@ export function updateFileAnalysis(sourcePath: string, analysis: HeadingAnalysis
  * Call this when a file is opened or when settings change.
  */
 export function resetFileState(sourcePath: string): void {
-  fileAnalyses.delete(sourcePath)
+  fileStates.delete(sourcePath)
 }
 
 /**
  * Reset all file analyses. Called when settings change globally.
  */
 export function resetAllFileStates(): void {
-  fileAnalyses.clear()
+  fileStates.clear()
 }
 
 // ─── Post-Processor ──────────────────────────────────────────────────
@@ -62,18 +112,18 @@ export function resetAllFileStates(): void {
  */
 export function createHeadingPostProcessor() {
   return (element: HTMLElement, context: MarkdownPostProcessorContext): void => {
-    if (!isEnabled || !currentSettings) return
-
-    const settings = currentSettings
     const sourcePath = context.sourcePath
+    const fileState = fileStates.get(sourcePath)
+    if (!fileState?.enabled) return
+
+    const { analysis, settings } = fileState
 
     // Find all heading elements in this section
     const headingElements = element.querySelectorAll('h1, h2, h3, h4, h5, h6')
     if (headingElements.length === 0) return
 
     // Get pre-computed analysis for this file
-    const analysis = fileAnalyses.get(sourcePath)
-    if (!analysis || analysis.headings.length === 0) return
+    if (analysis.headings.length === 0) return
 
     // Get section info for line-based heading matching
     const sectionInfo = context.getSectionInfo(element as HTMLElement)
@@ -139,13 +189,10 @@ export function createHeadingPostProcessor() {
       // If there's a detected manual number in the text, try to hide it
       // to avoid duplication (e.g., "1. 1. Introduction")
       if (analyzed.detectedNumber) {
-        const firstChild = headingEl.firstChild
-        if (firstChild && firstChild.nodeType === Node.TEXT_NODE) {
-          const text = firstChild.textContent || ''
-          if (text.startsWith(analyzed.detectedNumber.fullMatch)) {
-            firstChild.textContent = text.substring(analyzed.detectedNumber.fullMatch.length)
-          }
-        }
+        stripLeadingManualNumber(
+          getTextNodes(headingEl as HTMLElement),
+          analyzed.detectedNumber.fullMatch,
+        )
       }
 
       // Insert as the first child of the heading element

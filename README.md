@@ -53,6 +53,8 @@ To update later, repeat the same steps with the newer release files.
 
 **Visual only (decoration)** overlays numbers in the editor without modifying your files. Useful if you want numbering while writing but do not want it in the final output.
 
+Each open Markdown pane keeps its own decoration settings, including pinned and split panes. Moving focus to a sidebar or another pane does not remove numbers from already-open notes.
+
 **Off** disables the plugin entirely.
 
 ## Numbering styles
@@ -193,6 +195,8 @@ Tests:
 ```bash
 node tests/test-core.mjs
 node tests/layer23-check.mjs
+npm run test:editor
+npm run test:reported
 ```
 
 ## License

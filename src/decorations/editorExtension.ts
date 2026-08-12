@@ -14,7 +14,7 @@ import {
   DecorationSet,
   EditorView,
 } from '@codemirror/view'
-import { EditorState, StateField, Transaction, RangeSetBuilder } from '@codemirror/state'
+import { EditorState, StateEffect, StateField, Transaction, RangeSetBuilder } from '@codemirror/state'
 import {
   firstToken,
   makeNumberingString,
@@ -26,35 +26,70 @@ import {
 import { AutoHeadingSettings, DEFAULT_SETTINGS } from '../settings/settingsTypes'
 import { HeadingNumberWidget } from './widgets'
 import { detectManualNumber, DetectedNumber } from '../core/manualNumberDetector'
+import { findFrontMatterEndLine } from '../core/frontMatter'
 
-// ─── Settings State ───────────────────────────────────────────────────
+// ─── Per-editor Settings State ────────────────────────────────────────
 
-let currentSettings: AutoHeadingSettings = { ...DEFAULT_SETTINGS }
-let noteEnabled = false
-let settingsVersion = 0
-let lastBuiltNumberVersion = -1
-let lastBuiltIndentVersion = -1
+interface DecorationConfig {
+  settings: AutoHeadingSettings
+  enabled: boolean
+  signature: string
+}
 
-// Track previous values to detect actual changes
-let prevSettingsJSON = ''
-let prevNoteEnabled = false
-
-/**
- * Update the decoration settings. Returns true if settings actually changed.
- * Only increments settingsVersion when a real change is detected,
- * preventing unnecessary decoration rebuilds that cause cursor jumps.
- */
-export function updateDecorationSettings(settings: AutoHeadingSettings, enabled: boolean): boolean {
-  const newJSON = JSON.stringify(settings)
-  if (newJSON === prevSettingsJSON && enabled === prevNoteEnabled) {
-    return false
+function cloneSettings(settings: AutoHeadingSettings): AutoHeadingSettings {
+  return {
+    ...settings,
+    levelStyles: [...settings.levelStyles],
+    scopePaths: [...settings.scopePaths],
   }
-  currentSettings = settings
-  noteEnabled = enabled
-  prevSettingsJSON = newJSON
-  prevNoteEnabled = enabled
-  settingsVersion++
-  return true
+}
+
+function createDecorationConfig(
+  settings: AutoHeadingSettings,
+  enabled: boolean,
+  signature = `${JSON.stringify(settings)}:${enabled}`,
+): DecorationConfig {
+  return {
+    settings: cloneSettings(settings),
+    enabled,
+    signature,
+  }
+}
+
+const setDecorationConfig = StateEffect.define<DecorationConfig>()
+
+const decorationConfigField = StateField.define<DecorationConfig>({
+  create(): DecorationConfig {
+    return createDecorationConfig(DEFAULT_SETTINGS, false)
+  },
+
+  update(value: DecorationConfig, tr: Transaction): DecorationConfig {
+    for (const effect of tr.effects) {
+      if (effect.is(setDecorationConfig)) return effect.value
+    }
+    return value
+  },
+})
+
+/** Return a view-local settings effect only when that editor's config changed. */
+export function getDecorationSettingsEffect(
+  state: EditorState,
+  settings: AutoHeadingSettings,
+  enabled: boolean,
+): StateEffect<DecorationConfig> | null {
+  const config = state.field(decorationConfigField, false)
+  const signature = `${JSON.stringify(settings)}:${enabled}`
+  if (config?.signature === signature) return null
+  return setDecorationConfig.of(
+    createDecorationConfig(settings, enabled, signature),
+  )
+}
+
+function getConfigFromTransaction(tr: Transaction): DecorationConfig {
+  for (const effect of tr.effects) {
+    if (effect.is(setDecorationConfig)) return effect.value
+  }
+  return tr.startState.field(decorationConfigField)
 }
 
 // ─── Heading Info ─────────────────────────────────────────────────────
@@ -70,17 +105,26 @@ interface DocHeading {
 /**
  * Extract headings in a single pass (merged code-block detection).
  */
-function extractHeadingsFromDoc(state: EditorState): DocHeading[] {
+function extractHeadingsFromDoc(
+  state: EditorState,
+  settings: AutoHeadingSettings,
+): DocHeading[] {
   const headings: DocHeading[] = []
   const doc = state.doc
   let insideCodeBlock = false
   let fenceChar = ''    // '`' or '~'
   let fenceLen = 0      // number of fence chars in the opening fence
+  const frontMatterEndLine = findFrontMatterEndLine(
+    line => line < doc.lines ? doc.line(line + 1).text : '',
+    doc.lines - 1,
+  )
 
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i)
     const text = line.text
     const trimmed = text.trimStart()
+
+    if (frontMatterEndLine >= 0 && i - 1 <= frontMatterEndLine) continue
 
     // Track code fences (CommonMark spec compliant):
     // - Opening fence: ≥3 backticks or tildes, optionally followed by info string
@@ -118,7 +162,7 @@ function extractHeadingsFromDoc(state: EditorState): DocHeading[] {
           const leadingSpaces = text.length - content.length
           const textFrom = line.from + leadingSpaces
 
-          const detected = currentSettings.detectManualNumbers
+          const detected = settings.detectManualNumbers
             ? detectManualNumber(content)
             : null
 
@@ -142,7 +186,7 @@ function extractHeadingsFromDoc(state: EditorState): DocHeading[] {
     const prefixLen = match[1].length + hashes.length + 1
     const textFrom = line.from + prefixLen
 
-    const detected = currentSettings.detectManualNumbers
+    const detected = settings.detectManualNumbers
       ? detectManualNumber(content)
       : null
 
@@ -160,18 +204,24 @@ function extractHeadingsFromDoc(state: EditorState): DocHeading[] {
 
 // ─── Heading Cache (shared between number and indent fields) ──────────
 
-let cachedDocLen = -1
-let cachedDocLines = -1
-let cachedHeadings: DocHeading[] = []
+const headingCache = new WeakMap<object, Map<boolean, DocHeading[]>>()
 
-function getHeadingsCached(state: EditorState): DocHeading[] {
-  const len = state.doc.length
-  const lines = state.doc.lines
-  if (len === cachedDocLen && lines === cachedDocLines) return cachedHeadings
-  cachedDocLen = len
-  cachedDocLines = lines
-  cachedHeadings = extractHeadingsFromDoc(state)
-  return cachedHeadings
+function getHeadingsCached(
+  state: EditorState,
+  settings: AutoHeadingSettings,
+): DocHeading[] {
+  let cachedByDetection = headingCache.get(state.doc)
+  if (!cachedByDetection) {
+    cachedByDetection = new Map<boolean, DocHeading[]>()
+    headingCache.set(state.doc, cachedByDetection)
+  }
+
+  const cached = cachedByDetection.get(settings.detectManualNumbers)
+  if (cached) return cached
+
+  const headings = extractHeadingsFromDoc(state, settings)
+  cachedByDetection.set(settings.detectManualNumbers, headings)
+  return headings
 }
 
 // ─── Decoration Builder ───────────────────────────────────────────────
@@ -189,14 +239,17 @@ interface LineDecoInfo {
   level: number
 }
 
-function buildDecorations(state: EditorState, cursorLine?: number): DecorationSet {
-  lastBuiltNumberVersion = settingsVersion
-
-  if (!noteEnabled || !currentSettings.enabled) {
+function buildDecorations(
+  state: EditorState,
+  config: DecorationConfig,
+  cursorLine?: number,
+): DecorationSet {
+  if (!config.enabled) {
     return Decoration.none
   }
 
-  const headings = getHeadingsCached(state)
+  const currentSettings = config.settings
+  const headings = getHeadingsCached(state, currentSettings)
   if (headings.length === 0) return Decoration.none
 
   const effectiveFirstLevel = currentSettings.skipH1
@@ -314,13 +367,16 @@ function buildDecorations(state: EditorState, cursorLine?: number): DecorationSe
 /**
  * Build line-level decorations for heading indentation.
  */
-function buildLineDecorations(state: EditorState): DecorationSet {
-  lastBuiltIndentVersion = settingsVersion
-  if (!noteEnabled || !currentSettings.enabled || !currentSettings.headingIndent) {
+function buildLineDecorations(
+  state: EditorState,
+  config: DecorationConfig,
+): DecorationSet {
+  if (!config.enabled || !config.settings.headingIndent) {
     return Decoration.none
   }
 
-  const headings = getHeadingsCached(state)
+  const currentSettings = config.settings
+  const headings = getHeadingsCached(state, currentSettings)
   if (headings.length === 0) return Decoration.none
 
   const lineDecos: LineDecoInfo[] = []
@@ -406,65 +462,86 @@ function getCursorLine(state: EditorState): number {
   return state.doc.lineAt(state.selection.main.head).number - 1
 }
 
-/** Track the last cursor line to avoid unnecessary rebuilds on horizontal movement */
-let lastCursorLine = -1
+interface HeadingNumberFieldValue {
+  decorations: DecorationSet
+  cursorLine: number
+}
 
-export const headingNumberField = StateField.define<DecorationSet>({
-  create(state: EditorState): DecorationSet {
-    lastCursorLine = getCursorLine(state)
-    return buildDecorations(state, lastCursorLine)
+export const headingNumberField = StateField.define<HeadingNumberFieldValue>({
+  create(state: EditorState): HeadingNumberFieldValue {
+    const cursorLine = getCursorLine(state)
+    return {
+      decorations: buildDecorations(
+        state,
+        state.field(decorationConfigField),
+        cursorLine,
+      ),
+      cursorLine,
+    }
   },
 
-  update(value: DecorationSet, tr: Transaction): DecorationSet {
+  update(value: HeadingNumberFieldValue, tr: Transaction): HeadingNumberFieldValue {
     const newCursorLine = getCursorLine(tr.state)
+    const config = getConfigFromTransaction(tr)
+    const configChanged = tr.effects.some(effect => effect.is(setDecorationConfig))
+
+    if (configChanged) {
+      return {
+        decorations: buildDecorations(tr.state, config, newCursorLine),
+        cursorLine: newCursorLine,
+      }
+    }
 
     if (tr.docChanged) {
-      // Invalidate heading cache on doc change
-      cachedDocLen = -1
-
       // ── Fast path: map instead of rebuild ──
       // When cursor stays on the same line and the heading structure hasn't
       // changed (no headings added/removed, no level changes), we map existing
       // decorations through the change instead of rebuilding from scratch.
       // This adjusts positions with zero DOM churn, preventing cursor jumps
       // that occur when CM6 reconciles a fully-rebuilt DecorationSet.
-      if (newCursorLine === lastCursorLine && !needsFullRebuild(tr)) {
-        return value.map(tr.changes)
+      if (newCursorLine === value.cursorLine && !needsFullRebuild(tr)) {
+        return {
+          decorations: value.decorations.map(tr.changes),
+          cursorLine: value.cursorLine,
+        }
       }
 
-      lastCursorLine = newCursorLine
-      return buildDecorations(tr.state, newCursorLine)
+      return {
+        decorations: buildDecorations(tr.state, config, newCursorLine),
+        cursorLine: newCursorLine,
+      }
     }
 
-    if (tr.selection && newCursorLine !== lastCursorLine) {
-      lastCursorLine = newCursorLine
-      return buildDecorations(tr.state, newCursorLine)
-    }
-
-    if (lastBuiltNumberVersion !== settingsVersion) {
-      return buildDecorations(tr.state, newCursorLine)
+    if (tr.selection && newCursorLine !== value.cursorLine) {
+      return {
+        decorations: buildDecorations(tr.state, config, newCursorLine),
+        cursorLine: newCursorLine,
+      }
     }
 
     return value
   },
 
-  provide(field: StateField<DecorationSet>) {
-    return EditorView.decorations.from(field)
+  provide(field: StateField<HeadingNumberFieldValue>) {
+    return EditorView.decorations.from(field, value => value.decorations)
   },
 })
 
 export const headingIndentField = StateField.define<DecorationSet>({
   create(state: EditorState): DecorationSet {
-    return buildLineDecorations(state)
+    return buildLineDecorations(state, state.field(decorationConfigField))
   },
 
   update(value: DecorationSet, tr: Transaction): DecorationSet {
+    const config = getConfigFromTransaction(tr)
+    if (tr.effects.some(effect => effect.is(setDecorationConfig))) {
+      return buildLineDecorations(tr.state, config)
+    }
     if (tr.docChanged) {
       // Same fast path: map for non-structural edits
       if (!needsFullRebuild(tr)) return value.map(tr.changes)
-      return buildLineDecorations(tr.state)
+      return buildLineDecorations(tr.state, config)
     }
-    if (lastBuiltIndentVersion !== settingsVersion) return buildLineDecorations(tr.state)
     return value
   },
 
@@ -475,9 +552,9 @@ export const headingIndentField = StateField.define<DecorationSet>({
 
 export function getEditorExtensions() {
   return [
+    decorationConfigField,
     headingNumberField,
     headingIndentField,
-    EditorView.atomicRanges.of(view => view.state.field(headingNumberField)),
+    EditorView.atomicRanges.of(view => view.state.field(headingNumberField).decorations),
   ]
 }
-
