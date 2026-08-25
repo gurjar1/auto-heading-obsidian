@@ -114,6 +114,7 @@ function extractHeadingsFromDoc(
   let insideCodeBlock = false
   let fenceChar = ''    // '`' or '~'
   let fenceLen = 0      // number of fence chars in the opening fence
+  let mathBlockEnd = '' // '$$' or '\\]'
   const frontMatterEndLine = findFrontMatterEndLine(
     line => line < doc.lines ? doc.line(line + 1).text : '',
     doc.lines - 1,
@@ -145,6 +146,21 @@ function extractHeadingsFromDoc(
       insideCodeBlock = true
       fenceChar = openMatch[1][0]
       fenceLen = openMatch[1].length
+      continue
+    }
+
+    // Ignore display-math contents. A standalone LaTeX line followed by '='
+    // otherwise looks like a Setext H1 underline and resets the numbering.
+    if (mathBlockEnd) {
+      if (trimmed.includes(mathBlockEnd)) mathBlockEnd = ''
+      continue
+    }
+    if (trimmed.startsWith('$$')) {
+      if (!trimmed.slice(2).includes('$$')) mathBlockEnd = '$$'
+      continue
+    }
+    if (trimmed.startsWith('\\[')) {
+      if (!trimmed.slice(2).includes('\\]')) mathBlockEnd = '\\]'
       continue
     }
 
