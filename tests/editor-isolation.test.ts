@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { EditorState } from '@codemirror/state'
+import { EditorState, StateEffect } from '@codemirror/state'
 import {
   getDecorationSettingsEffect,
   getEditorExtensions,
@@ -42,6 +42,19 @@ function getLabels(state: EditorState): string[] {
 }
 
 const extensions = getEditorExtensions()
+
+// Obsidian adds plugin extensions to editor states that already exist. The
+// reconfiguration transaction's start state therefore has none of our fields.
+let existingState = EditorState.create({
+  doc: '## Existing editor',
+})
+assert.doesNotThrow(() => {
+  existingState = existingState.update({
+    effects: StateEffect.appendConfig.of(extensions),
+  }).state
+})
+assert.ok(existingState.field(headingNumberField, false))
+
 let pinnedState = EditorState.create({
   doc: 'intro\n## Pinned section\n### Pinned detail',
   extensions,

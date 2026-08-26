@@ -89,7 +89,13 @@ function getConfigFromTransaction(tr: Transaction): DecorationConfig {
   for (const effect of tr.effects) {
     if (effect.is(setDecorationConfig)) return effect.value
   }
-  return tr.startState.field(decorationConfigField)
+
+  // Obsidian installs editor extensions by reconfiguring an existing state.
+  // During that transaction the new fields are already being updated, but the
+  // transaction's start state cannot contain decorationConfigField yet.
+  return tr.state.field(decorationConfigField, false)
+    ?? tr.startState.field(decorationConfigField, false)
+    ?? createDecorationConfig(DEFAULT_SETTINGS, false)
 }
 
 // ─── Heading Info ─────────────────────────────────────────────────────
