@@ -114,4 +114,37 @@ frontMatterState = configure(
 )
 assert.deepEqual(getLabels(frontMatterState), ['1. '])
 
+// Display math must not create phantom Setext headings from a standalone '='.
+let displayMathState = EditorState.create({
+  doc: [
+    'intro',
+    '## Chapter',
+    '### First',
+    '$$',
+    'X_t',
+    '=',
+    '\\Phi(\\mathcal F_t)',
+    '$$',
+    '### Second',
+    '\\[',
+    'S_j(t)',
+    '=',
+    '\\sum_i q_i',
+    '\\]',
+    '### Third',
+  ].join('\n'),
+  extensions,
+})
+displayMathState = configure(
+  displayMathState,
+  makeSettings({ mode: 'decoration', enabled: true }),
+  true,
+)
+assert.deepEqual(getLabels(displayMathState), [
+  '1. ',
+  '1.1. ',
+  '1.2. ',
+  '1.3. ',
+])
+
 console.log('editor view isolation tests passed')
